@@ -3,6 +3,7 @@ Jack The Shadow — Risk & YOLO Panels + Approval Prompt
 
 Colour-coded risk panels and the HITL approval flow.
 Uses interactive selector instead of manual text input.
+All panels expand to full terminal width.
 """
 
 from __future__ import annotations
@@ -39,10 +40,13 @@ def display_risk_panel(action: str, detail: str, risk_level: str) -> None:
     body.append(f"\n{t('hitl.wants_to_run')} ", style="white")
     body.append(action, style="bold white")
     body.append(":\n\n", style="white")
-    body.append(f"  {detail}\n", style="bold white")
+
+    # Truncate very long commands for display, show full in collapsed form
+    display_detail = detail if len(detail) <= 500 else detail[:500] + "..."
+    body.append(f"  {display_detail}\n", style="bold white")
 
     console.print()
-    console.print(Panel(body, title=header, border_style=border, padding=(1, 2)))
+    console.print(Panel(body, title=header, border_style=border, expand=True, padding=(1, 2)))
 
 
 def display_yolo_toggle(active: bool) -> None:
@@ -51,6 +55,7 @@ def display_yolo_toggle(active: bool) -> None:
             t("yolo.on_body"),
             border_style="red",
             title=f"[warning blink]{t('yolo.on_title')}[/]",
+            expand=True,
             padding=(1, 2),
         ))
     else:
@@ -58,6 +63,7 @@ def display_yolo_toggle(active: bool) -> None:
             t("yolo.off_body"),
             border_style="green",
             title=f"[green]{t('yolo.off_title')}[/]",
+            expand=True,
             padding=(1, 2),
         ))
 

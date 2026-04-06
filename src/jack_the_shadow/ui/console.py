@@ -2,6 +2,7 @@
 Jack The Shadow — Rich Console & Theme
 
 Singleton console instance and colour theme used by all UI modules.
+Uses full terminal width for immersive fullscreen feel.
 """
 
 from rich.console import Console
@@ -19,6 +20,8 @@ THEME = Theme({
     "risk.critical": "bold red blink",
     "menu.cmd": "bold cyan",
     "menu.desc": "dim white",
+    "phase": "bold magenta",
+    "separator": "dim cyan",
 })
 
-console = Console(theme=THEME)
+console = Console(theme=THEME, highlight=False)

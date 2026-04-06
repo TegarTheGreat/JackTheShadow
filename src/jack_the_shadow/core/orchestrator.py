@@ -77,12 +77,22 @@ def process_tool_calls(
 
         result_str = json.dumps(tool_result, ensure_ascii=False)
 
+        # Format tool output — compact for success, detailed for errors
         icon = "✓" if tool_result["status"] == "success" else "✖"
         style = "green" if tool_result["status"] == "success" else "red"
         preview = tool_result.get("output", tool_result.get("message", ""))
-        if len(preview) > 200:
-            preview = preview[:200] + "..."
-        console.print(f"[{style}]  {icon} {name}: {preview}[/]")
+
+        # Clean multi-line output for display
+        lines = preview.strip().split("\n")
+        if len(lines) > 8:
+            visible = "\n".join(lines[:6])
+            visible += f"\n[dim]  ... +{len(lines) - 6} more lines[/]"
+            console.print(f"[{style}]  {icon} {name}:[/]")
+            console.print(f"[dim]{visible}[/]")
+        elif len(preview) > 300:
+            console.print(f"[{style}]  {icon} {name}: {preview[:300]}...[/]")
+        else:
+            console.print(f"[{style}]  {icon} {name}: {preview}[/]")
 
         state.add_tool_result(call_id, result_str)
 
@@ -135,6 +145,7 @@ def query_ai(
     """
     max_tool_rounds = 15
     indicator = get_phase_indicator()
+    indicator.show()
     active_schemas = _filter_schemas_for_phase(tool_schemas, state.phase)
 
     for round_num in range(max_tool_rounds):
@@ -161,6 +172,7 @@ def query_ai(
                 )
             except CloudflareAIError as exc:
                 indicator.set(Phase.ERROR, str(exc))
+                indicator.hide()
                 display.abort()
                 display_error(str(exc))
                 logger.error("AI query failed: %s", exc)
@@ -181,6 +193,7 @@ def query_ai(
                 if content:
                     display_ai_message(content)
             indicator.set(Phase.DONE)
+            indicator.hide()
             return
 
         # ── Non-streaming path (tool rounds & fallback) ───────────────
@@ -196,6 +209,7 @@ def query_ai(
                 )
             except CloudflareAIError as exc:
                 indicator.set(Phase.ERROR, str(exc))
+                indicator.hide()
                 display_error(str(exc))
                 logger.error("AI query failed: %s", exc)
                 return
@@ -211,8 +225,10 @@ def query_ai(
         if content:
             display_ai_message(content)
         indicator.set(Phase.DONE)
+        indicator.hide()
         return
 
+    indicator.hide()
     display_error(t("tool.max_rounds", limit=max_tool_rounds))
     logger.warning("Tool-call loop hit max rounds (%d)", max_tool_rounds)
 

@@ -3,6 +3,7 @@ Jack The Shadow — Message Display
 
 Functions for rendering AI responses, user input, errors, and info.
 Includes a terminal-safe text sanitizer for complex Unicode sequences.
+All panels use full terminal width for immersive layout.
 """
 
 import re
@@ -10,6 +11,7 @@ import sys
 
 from rich.markdown import Markdown
 from rich.panel import Panel
+from rich.text import Text
 
 from jack_the_shadow.ui.console import console
 
@@ -49,6 +51,7 @@ def display_ai_message(text: str) -> None:
         Markdown(text),
         title="[jack]🗡  Jack[/]",
         border_style="green",
+        expand=True,
         padding=(1, 2),
     ))
 
@@ -56,8 +59,8 @@ def display_ai_message(text: str) -> None:
 class StreamingDisplay:
     """Collects streamed tokens and renders a final formatted panel.
 
-    Tokens are printed inline for real-time feedback.  When ``finish()``
-    is called, the inline text is left as-is (no duplicate panel).
+    First shows tokens inline for real-time feedback, then renders
+    a proper Markdown panel at the end for consistent formatting.
     """
 
     def __init__(self) -> None:
@@ -71,7 +74,7 @@ class StreamingDisplay:
             return
         if not self._started:
             console.print()
-            console.print("[jack]🗡  Jack:[/]", end=" ")
+            console.print("[jack]🗡  Jack:[/] ", end="")
             self._started = True
 
         # Sanitize and write through Rich's console for proper encoding
@@ -80,10 +83,18 @@ class StreamingDisplay:
         self._parts.append(clean)
 
     def finish(self) -> str:
-        """End the stream. Returns the full accumulated text."""
+        """End the stream. Renders the accumulated text as a formatted panel."""
         full = "".join(self._parts)
         if self._started and full.strip():
+            # Clear inline text line and render proper panel
             console.out("\n")
+            console.print(Panel(
+                Markdown(full),
+                title="[jack]🗡  Jack[/]",
+                border_style="green",
+                expand=True,
+                padding=(1, 2),
+            ))
         return full
 
     def abort(self) -> None:

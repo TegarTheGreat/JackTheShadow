@@ -87,16 +87,53 @@ def _safe_input(prompt_text: str) -> str:
 
 
 def _display_command_menu() -> Optional[str]:
-    """Show an interactive ↑↓ selector for commands."""
+    """Show an interactive ↑↓ selector for commands, grouped by category."""
     commands = _registry.all()
-    labels = [cmd.name for cmd in commands]
-    descs = [cmd.description for cmd in commands]
 
-    idx = interactive_select(labels, title="Commands", descriptions=descs)
-    if idx is None:
+    # Group commands by category
+    categories: dict[str, list] = {}
+    for cmd in commands:
+        cat = cmd.category or "general"
+        categories.setdefault(cat, []).append(cmd)
+
+    # Build a flat display list with category headers
+    labels: list[str] = []
+    descs: list[str] = []
+    cmd_indices: list[int] = []  # Maps display index → command index
+    cmd_list: list[Any] = []
+
+    category_order = ["session", "tools", "config", "auth", "general"]
+    category_icons = {
+        "session": "💾", "tools": "🛠", "config": "⚙",
+        "auth": "🔐", "general": "📌",
+    }
+
+    for cat in category_order:
+        if cat not in categories:
+            continue
+        icon = category_icons.get(cat, "")
+        labels.append(f"── {icon} {cat.upper()} ──")
+        descs.append("")
+        cmd_indices.append(-1)  # Header, not selectable
+
+        for cmd in categories[cat]:
+            labels.append(f"  {cmd.name}")
+            descs.append(cmd.description)
+            cmd_indices.append(len(cmd_list))
+            cmd_list.append(cmd)
+
+    # Find first selectable item
+    skip_set = {i for i, ci in enumerate(cmd_indices) if ci < 0}
+    first_selectable = next((i for i, ci in enumerate(cmd_indices) if ci >= 0), 0)
+
+    idx = interactive_select(
+        labels, title="Commands", selected=first_selectable,
+        descriptions=descs, skip_indices=skip_set,
+    )
+    if idx is None or cmd_indices[idx] < 0:
         return None
 
-    selected = commands[idx].name
+    selected = cmd_list[cmd_indices[idx]].name
     if selected in ("/target",):
         console.print(f"[dim]  {selected} → enter value (ESC to cancel):[/]")
         arg = _safe_input("  > ")
@@ -169,9 +206,11 @@ def _show_context_info(state: Any) -> None:
         f"[bold]{t('context.messages')}:[/] {count} / {MAX_CONTEXT_MESSAGES}\n"
         f"[bold]{t('banner.target')}:[/] {target_str}\n"
         f"[bold]{t('banner.model')}:[/] {state.model}\n"
-        f"[bold]{t('banner.yolo')}:[/] {'ON' if state.yolo_mode else 'OFF'}",
+        f"[bold]{t('banner.yolo')}:[/] {'ON' if state.yolo_mode else 'OFF'}\n"
+        f"[bold]Phase:[/] {state.phase.upper()}",
         title=f"[info]{t('context.title')}[/]",
         border_style="blue",
+        expand=True,
     ))
 
 
@@ -345,7 +384,7 @@ def _handle_cost_command(cost_tracker: Any) -> None:
         console.print("[dim]  Cost tracking not available.[/]")
         return
     summary = cost_tracker.format_summary()
-    console.print(Panel(summary, title="[info]API Usage[/]", border_style="blue"))
+    console.print(Panel(summary, title="[info]API Usage[/]", border_style="blue", expand=True))
 
 
 def _handle_memory_command(arg: str) -> None:
@@ -373,7 +412,7 @@ def _handle_memory_command(arg: str) -> None:
         else:
             console.print(f"[dim]  No memory entries matching '{arg}'.[/]")
     else:
-        console.print(Panel(content[:3000], title="[info]Persistent Memory[/]", border_style="blue"))
+        console.print(Panel(content[:3000], title="[info]Persistent Memory[/]", border_style="blue", expand=True))
 
 
 def _handle_plan_command() -> None:
