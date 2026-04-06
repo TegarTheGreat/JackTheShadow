@@ -3,14 +3,15 @@ Jack The Shadow — Orchestrator
 
 The AI ↔ tool-call loop extracted from main.py for clean separation.
 Handles multi-round tool calling, result feeding, display, and session auto-save.
-Supports live AI reconnection via /login.
+Supports live AI reconnection via /login and SSE streaming.
 """
 
 from __future__ import annotations
 
 import json
-from typing import Any, Callable, NoReturn, Optional
+from typing import Any, Callable, Iterator, NoReturn, Optional
 
+from jack_the_shadow.config import STREAM_RESPONSES
 from jack_the_shadow.core.engine import CloudflareAI, CloudflareAIError
 from jack_the_shadow.core.state import AppState
 from jack_the_shadow.i18n import t
@@ -18,6 +19,7 @@ from jack_the_shadow.tools.executor import ToolExecutor
 from jack_the_shadow.ui import (
     console,
     display_ai_message,
+    display_ai_stream,
     display_error,
     display_info,
     display_user_message,
@@ -69,6 +71,64 @@ def process_tool_calls(
         state.add_tool_result(call_id, result_str)
 
 
+def _query_streaming(
+    ai: CloudflareAI,
+    state: AppState,
+    executor: ToolExecutor,
+    tool_schemas: list[dict[str, Any]],
+    cost_tracker: Any = None,
+) -> None:
+    """AI query using SSE streaming for real-time token display."""
+    max_tool_rounds = 15
+
+    for round_num in range(max_tool_rounds):
+        state.truncate_context()
+        messages = state.get_messages_for_api()
+
+        if round_num > 0:
+            with status_spinner(t("spinner.tool_result")):
+                pass  # brief visual cue before next round
+
+        try:
+            result = ai.chat_stream(messages, tools=tool_schemas, cost_tracker=cost_tracker)
+        except CloudflareAIError as exc:
+            display_error(str(exc))
+            logger.error("AI stream failed: %s", exc)
+            return
+
+        # If chat_stream returns a dict, it's a tool-call response
+        if isinstance(result, dict):
+            state.add_assistant_message(result)
+            tool_calls = result.get("tool_calls")
+            if tool_calls:
+                process_tool_calls(tool_calls, executor, state)
+                continue
+            content = result.get("content", "")
+            if content:
+                display_ai_message(content)
+            return
+
+        # It's a generator — stream tokens to UI
+        stream_result = display_ai_stream(result)
+
+        # display_ai_stream may return a dict if tool_calls arrived mid-stream
+        if isinstance(stream_result, dict):
+            state.add_assistant_message(stream_result)
+            tool_calls = stream_result.get("tool_calls")
+            if tool_calls:
+                process_tool_calls(tool_calls, executor, state)
+                continue
+            return
+
+        # Normal text response
+        if stream_result:
+            state.add_message("assistant", stream_result)
+        return
+
+    display_error(t("tool.max_rounds", limit=max_tool_rounds))
+    logger.warning("Tool-call loop hit max rounds (%d)", max_tool_rounds)
+
+
 def query_ai(
     ai: CloudflareAI,
     state: AppState,
@@ -76,7 +136,13 @@ def query_ai(
     tool_schemas: list[dict[str, Any]],
     cost_tracker: Any = None,
 ) -> None:
-    """Run the AI query with multi-round tool calling (max 15 rounds)."""
+    """Run the AI query with multi-round tool calling (max 15 rounds).
+
+    Uses streaming when STREAM_RESPONSES is enabled.
+    """
+    if STREAM_RESPONSES:
+        return _query_streaming(ai, state, executor, tool_schemas, cost_tracker)
+
     max_tool_rounds = 15
 
     for round_num in range(max_tool_rounds):

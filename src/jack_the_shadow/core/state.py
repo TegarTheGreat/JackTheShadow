@@ -42,7 +42,11 @@ class AppState:
         logger.debug("Added tool result for call %s", tool_call_id)
 
     def add_assistant_message(self, message: dict[str, Any]) -> None:
-        self.context_messages.append(message)
+        """Store assistant message, ensuring content is never null."""
+        msg = dict(message)
+        if msg.get("content") is None:
+            msg["content"] = ""
+        self.context_messages.append(msg)
         logger.debug("Added assistant message (raw)")
 
     def get_messages_for_api(self) -> list[dict[str, Any]]:

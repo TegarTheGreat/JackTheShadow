@@ -8,6 +8,7 @@ from jack_the_shadow.ui.console import console  # noqa: F401
 from jack_the_shadow.ui.banner import display_banner  # noqa: F401
 from jack_the_shadow.ui.messages import (  # noqa: F401
     display_ai_message,
+    display_ai_stream,
     display_error,
     display_info,
     display_user_message,

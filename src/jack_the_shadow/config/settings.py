@@ -16,6 +16,11 @@ load_dotenv()
 DEFAULT_MODEL: str = os.getenv("JSHADOW_DEFAULT_MODEL", "@cf/openai/gpt-oss-120b")
 DEFAULT_LANGUAGE: str = os.getenv("JSHADOW_LANG", "en")
 
+# ── AI Generation Settings ───────────────────────────────────────────
+MAX_TOKENS: int = int(os.getenv("JSHADOW_MAX_TOKENS", "4096"))
+TEMPERATURE: float = float(os.getenv("JSHADOW_TEMPERATURE", "0.6"))
+STREAM_RESPONSES: bool = os.getenv("JSHADOW_STREAM", "1") == "1"
+
 # ── Runtime Limits ───────────────────────────────────────────────────
 MAX_CONTEXT_MESSAGES: int = 50
 MAX_OUTPUT_CHARS: int = 10_000
@@ -33,8 +38,14 @@ WEB_SEARCH_MAX_RESULTS: int = 8
 LOG_FILE: str = "jshadow.log"
 LOG_LEVEL: str = os.getenv("JSHADOW_LOG_LEVEL", "DEBUG")
 
-# ── API Endpoint Template ────────────────────────────────────────────
+# ── API Endpoints ────────────────────────────────────────────────────
+# Primary: OpenAI-compatible endpoint (proper tool calling & streaming)
 API_ENDPOINT: str = (
+    "https://api.cloudflare.com/client/v4/accounts"
+    "/{account_id}/ai/v1/chat/completions"
+)
+# Fallback: Legacy endpoint (for non-chat models)
+API_ENDPOINT_LEGACY: str = (
     "https://api.cloudflare.com/client/v4/accounts"
     "/{account_id}/ai/run/{model}"
 )
