@@ -188,6 +188,46 @@ def _select_model(state: Any) -> Optional[str]:
     return ids[idx]
 
 
+def _inject_model_switch_recap(state: Any) -> None:
+    """Inject a context-recap system message so the new model knows prior findings.
+
+    Reads persistent memory, todos, and target to build a handoff briefing.
+    """
+    parts: list[str] = [
+        f"[MODEL SWITCHED to {state.model}] "
+        "You are continuing an existing session. Here is your context:"
+    ]
+
+    if state.target:
+        parts.append(f"Active target: {state.target}")
+    parts.append(f"Current phase: {state.phase}")
+
+    # Inject persistent memory summary
+    try:
+        from jack_the_shadow.tools.builtin.memory import NOTES_FILE
+        if NOTES_FILE.exists():
+            notes = NOTES_FILE.read_text(encoding="utf-8").strip()
+            if notes:
+                if len(notes) > 3000:
+                    notes = notes[:3000] + "\n... (truncated)"
+                parts.append(f"Persistent memory (prior findings):\n{notes}")
+    except Exception:
+        pass
+
+    # Inject current todos
+    try:
+        from jack_the_shadow.tools.builtin.todo import _load_todos, _format_todos
+        todos = _load_todos()
+        if todos:
+            parts.append(f"Current task list:\n{_format_todos(todos)}")
+    except Exception:
+        pass
+
+    recap = "\n\n".join(parts)
+    state.add_message("system", recap)
+    logger.info("Injected model-switch recap (%d chars)", len(recap))
+
+
 def _show_tools_list(tool_names: list[str]) -> None:
     table = Table(title="[info]Available Tools[/]", border_style="blue")
     table.add_column("No", style="bold", width=4)
@@ -571,26 +611,30 @@ def handle_local_command(
         return True
 
     if cmd == "/model":
+        old_model = state.model
         if arg:
             # Direct argument: try to match
             catalog = _get_live_catalog()
             all_ids = list(catalog.values())
             if arg in all_ids or arg.startswith("@cf/"):
                 state.model = arg
-                display_info(t("model.switched", model=state.model))
-                return True
-            for name, mid in catalog.items():
-                if arg.lower() in name.lower():
-                    state.model = mid
-                    display_info(t("model.switched", model=state.model))
+            else:
+                for name, mid in catalog.items():
+                    if arg.lower() in name.lower():
+                        state.model = mid
+                        break
+                else:
+                    display_error(t("model.invalid"))
                     return True
-            display_error(t("model.invalid"))
         else:
             # Interactive selector
             model_id = _select_model(state)
             if model_id:
                 state.model = model_id
-                display_info(t("model.switched", model=state.model))
+
+        if state.model != old_model:
+            display_info(t("model.switched", model=state.model))
+            _inject_model_switch_recap(state)
         return True
 
     if cmd == "/lang":
