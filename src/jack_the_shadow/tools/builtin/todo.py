@@ -159,6 +159,15 @@ def handle_todo_write(
     status: str | None = None,
     phase: str | None = None,
 ) -> dict[str, str]:
+    valid_actions = {"add", "update", "remove", "clear"}
+
+    # Auto-correct: AI sometimes puts a description in `action` instead of enum
+    if action not in valid_actions:
+        if not task:
+            task = action
+        action = "add"
+        logger.info("todo_write: auto-corrected action to 'add', task=%s", task)
+
     try:
         todos = _load_todos()
     except OSError as exc:

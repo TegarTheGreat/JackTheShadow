@@ -28,6 +28,7 @@ from jack_the_shadow.ui import (
     StreamingDisplay,
 )
 from jack_the_shadow.ui.phases import Phase, get_phase_indicator
+from rich.text import Text
 from jack_the_shadow.utils.logger import get_logger
 
 logger = get_logger("core.orchestrator")
@@ -62,9 +63,14 @@ def process_tool_calls(
             args = {}
             logger.warning("Bad args for %s: %s", name, raw_args)
 
+        args_preview = json.dumps(args, ensure_ascii=False)[:120]
         console.print(
-            f"\n[dim]⚙  {t('tool.call')}: "
-            f"[bold]{name}[/bold]({json.dumps(args, ensure_ascii=False)[:120]})[/]"
+            Text.assemble(
+                ("\n⚙  ", "dim"),
+                (f"{t('tool.call')}: ", "dim"),
+                (name, "dim bold"),
+                (f"({args_preview})", "dim"),
+            )
         )
 
         indicator.set(Phase.TOOL_USE, name)
@@ -80,19 +86,22 @@ def process_tool_calls(
         # Format tool output — compact for success, detailed for errors
         icon = "✓" if tool_result["status"] == "success" else "✖"
         style = "green" if tool_result["status"] == "success" else "red"
-        preview = tool_result.get("output", tool_result.get("message", ""))
+        # Use `or` chain — result() always sets output="" even for errors
+        preview = tool_result.get("output", "") or tool_result.get("message", "")
 
-        # Clean multi-line output for display
-        lines = preview.strip().split("\n")
+        # Show tool output (use Text to prevent Rich markup interpretation)
+        lines = preview.strip().split("\n") if preview.strip() else []
         if len(lines) > 8:
             visible = "\n".join(lines[:6])
-            visible += f"\n[dim]  ... +{len(lines) - 6} more lines[/]"
-            console.print(f"[{style}]  {icon} {name}:[/]")
-            console.print(f"[dim]{visible}[/]")
+            visible += f"\n  ... +{len(lines) - 6} more lines"
+            console.print(Text(f"  {icon} {name}:", style=style))
+            console.print(Text(visible, style="dim"))
         elif len(preview) > 300:
-            console.print(f"[{style}]  {icon} {name}: {preview[:300]}...[/]")
+            console.print(Text(f"  {icon} {name}: {preview[:300]}...", style=style))
+        elif preview:
+            console.print(Text(f"  {icon} {name}: {preview}", style=style))
         else:
-            console.print(f"[{style}]  {icon} {name}: {preview}[/]")
+            console.print(Text(f"  {icon} {name}", style=style))
 
         state.add_tool_result(call_id, result_str)
 
@@ -222,7 +231,10 @@ def query_ai(
             continue
 
         content = assistant_msg.get("content", "")
-        if content:
+        # After tool rounds, suppress the placeholder "no response" text —
+        # tool output already served as the response.
+        is_placeholder = content == t("ai.empty_response")
+        if content and not (is_placeholder and round_num > 0):
             display_ai_message(content)
         indicator.set(Phase.DONE)
         indicator.hide()

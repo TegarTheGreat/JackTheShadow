@@ -69,7 +69,7 @@ def display_yolo_toggle(active: bool) -> None:
 
 
 def display_yolo_auto_approve(action: str) -> None:
-    console.print(f"[warning]{t('yolo.auto_approve')}[/]")
+    console.print(Text(f"  ⚡ [YOLO MODE] Auto-approving: {action}", style="warning"))
 
 
 def prompt_approval(action: str, detail: str, risk_level: str) -> bool:
