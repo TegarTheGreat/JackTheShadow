@@ -9,14 +9,17 @@ from jack_the_shadow.tools.registry import ToolRegistry, build_default_registry
 def test_build_default_registry_has_all_tools():
     registry = build_default_registry()
     names = registry.list_names()
-    assert len(names) == 22
+    assert len(names) == 26
     expected = {
         "bash_execute", "file_read", "file_write", "file_edit",
         "grep_search", "glob_find", "list_directory", "http_request",
         "web_fetch", "web_search", "cve_lookup",
-        "memory_read", "memory_write", "todo_read", "todo_write",
+        "memory_read", "memory_write", "network_recon",
+        "todo_read", "todo_write",
         "git_command", "doctor_check", "batch_execute",
-        "apply_patch", "python_repl", "ask_user", "mcp_call",
+        "apply_patch", "python_repl", "report_generate",
+        "exploit_search", "wordlist_manage",
+        "ask_user", "mcp_call",
     }
     assert set(names) == expected
 
