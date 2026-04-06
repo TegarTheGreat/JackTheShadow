@@ -25,6 +25,7 @@ class AppState:
     language: str = "en"
     target: str = ""
     yolo_mode: bool = False
+    phase: str = "recon"  # Current pentest phase
     context_messages: list[dict[str, Any]] = field(default_factory=list)
 
     # ── Message helpers
@@ -55,6 +56,8 @@ class AppState:
         prompt = get_system_prompt(self.language)
         if self.target:
             prompt += f"\n\n## Active Target\nCurrent target scope: `{self.target}`"
+        # Inject current pentest phase
+        prompt += f"\n\n## Current Phase: {self.phase.upper()}\nFocus your tool calls on {self.phase} techniques."
         # Inject persistent memory (JSHADOW.md, notes, etc.)
         try:
             from jack_the_shadow.core.memory import build_memory_prompt

@@ -52,6 +52,7 @@ def _register_commands() -> None:
         Command("/memory",      t("cmd.memory.desc"),      "session", aliases=["/mem"]),
         Command("/plan",        t("cmd.plan.desc"),        "session"),
         Command("/permissions", t("cmd.permissions.desc"), "config",  aliases=["/perm"]),
+        Command("/phase",       t("cmd.phase.desc"),       "session", aliases=["/p"]),
         Command("/help",        t("cmd.help.desc"),        "general", aliases=["/h", "/?"]),
         Command("/exit",        t("cmd.exit.desc"),        "general", aliases=["/quit", "/q"]),
     ]
@@ -621,6 +622,10 @@ def handle_local_command(
         _handle_permissions_command(arg)
         return True
 
+    if cmd == "/phase":
+        _handle_phase_command(arg, state)
+        return True
+
     # Fuzzy suggestion for unknown commands
     suggestions = _registry.fuzzy_search(raw_cmd)
     if suggestions:
@@ -629,3 +634,27 @@ def handle_local_command(
     else:
         console.print(f"[dim]  Unknown command: {raw_cmd}. Type / for menu.[/]")
     return True
+
+
+def _handle_phase_command(arg: str, state: "AppState") -> None:
+    """Switch the current pentest phase (affects tool selection)."""
+    from jack_the_shadow.core.methodology import PHASES
+
+    if arg and arg.lower() in PHASES:
+        state.phase = arg.lower()
+        console.print(f"[bold green]  Phase set: {state.phase}[/]")
+        return
+
+    labels = list(PHASES)
+    descs = [
+        "Reconnaissance — DNS, WHOIS, port scan, web search",
+        "Enumeration — dir brute, param discovery, service enum",
+        "Vulnerability — CVE search, vuln scan, tech fingerprint",
+        "Exploitation — payload gen, exploit run, RCE, SQLi",
+        "Post-Exploit — privesc, lateral movement, data exfil",
+        "Reporting — compile findings, generate report",
+    ]
+    idx = interactive_select(labels, title="Pentest Phase", descriptions=descs)
+    if idx is not None:
+        state.phase = labels[idx]
+        console.print(f"[bold green]  Phase set: {state.phase}[/]")

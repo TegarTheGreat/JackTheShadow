@@ -83,6 +83,7 @@ STRINGS: dict[str, str] = {
     "cmd.memory.desc": "Lihat memori persisten / temuan",
     "cmd.plan.desc": "Lihat rencana serangan / daftar tugas",
     "cmd.permissions.desc": "Kelola aturan auto-approve",
+    "cmd.phase.desc": "Ganti fase pentest (recon/enum/vuln/exploit/report)",
 
     # ── Login / Logout
     "cmd.login.desc": "Koneksi kredensial Cloudflare AI",

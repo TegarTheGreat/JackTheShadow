@@ -40,8 +40,16 @@ def process_tool_calls(
     executor: ToolExecutor,
     state: AppState,
 ) -> None:
-    """Execute each tool call and feed results back into context."""
+    """Execute each tool call and feed results back into context.
+
+    After execution, analyzes results and injects follow-up intelligence
+    hints so the AI knows what to do next without guessing.
+    """
+    from jack_the_shadow.core.methodology import analyze_results, format_suggestions
+
     indicator = get_phase_indicator()
+    all_suggestions: list[str] = []
+
     for tc in tool_calls:
         call_id = tc.get("id", "unknown")
         func = tc.get("function", {})
@@ -72,6 +80,39 @@ def process_tool_calls(
 
         state.add_tool_result(call_id, result_str)
 
+        # Analyze results for follow-up intelligence
+        if result.get("status") == "success":
+            suggestions = analyze_results(name, args, result)
+            all_suggestions.extend(suggestions)
+
+    # Inject intelligence hints as system guidance
+    if all_suggestions:
+        intel = format_suggestions(all_suggestions, state.language)
+        state.add_message("system", intel)
+        logger.info("Injected %d intelligence hints", len(all_suggestions))
+
+
+def _filter_schemas_for_phase(
+    all_schemas: list[dict[str, Any]],
+    phase: str,
+) -> list[dict[str, Any]]:
+    """Return only tool schemas relevant to the current pentest phase.
+
+    Reduces context token usage and helps the model focus on applicable tools.
+    """
+    from jack_the_shadow.core.methodology import get_phase_tools
+
+    allowed = get_phase_tools(phase)
+
+    # If the allowed set covers nearly everything, just return all
+    if len(allowed) >= 25:
+        return all_schemas
+
+    return [
+        s for s in all_schemas
+        if s.get("function", {}).get("name", "") in allowed
+    ]
+
 
 def query_ai(
     ai: CloudflareAI,
@@ -84,9 +125,11 @@ def query_ai(
 
     Uses SSE streaming for text-only responses when STREAM_RESPONSES is on.
     Always uses non-streaming for tool-call rounds (more reliable).
+    Applies phase-aware tool filtering to reduce token usage.
     """
     max_tool_rounds = 15
     indicator = get_phase_indicator()
+    active_schemas = _filter_schemas_for_phase(tool_schemas, state.phase)
 
     for round_num in range(max_tool_rounds):
         messages = state.get_messages_for_api()
@@ -98,7 +141,7 @@ def query_ai(
             try:
                 assistant_msg = ai.chat_stream(
                     messages,
-                    tools=tool_schemas,
+                    tools=active_schemas,
                     cost_tracker=cost_tracker,
                     on_token=display.on_token,
                 )
@@ -135,7 +178,7 @@ def query_ai(
         with status_spinner(spinner_msg):
             try:
                 assistant_msg = ai.chat(
-                    messages, tools=tool_schemas, cost_tracker=cost_tracker,
+                    messages, tools=active_schemas, cost_tracker=cost_tracker,
                 )
             except CloudflareAIError as exc:
                 indicator.set(Phase.ERROR, str(exc))
@@ -194,6 +237,54 @@ def _resume_session(session_id: str, state: AppState) -> None:
     )
 
 
+def _maybe_enrich_target_input(user_input: str, state: AppState) -> str:
+    """If user input looks like a bare target, auto-set it and enrich
+    the message with an explicit recon instruction.
+
+    This helps weaker models understand they should immediately launch
+    a full recon sweep instead of asking what to do.
+    """
+    import re
+
+    text = user_input.strip()
+
+    # Skip if input is clearly a sentence (has spaces + common words)
+    if len(text.split()) > 3:
+        return user_input
+
+    # Detect domain pattern (e.g., "example.com", "sub.example.co.id")
+    domain_re = re.compile(
+        r'^(?:https?://)?([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?'
+        r'(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*'
+        r'\.[a-zA-Z]{2,})(?:[:/].*)?$'
+    )
+    # Detect IP pattern
+    ip_re = re.compile(
+        r'^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})(?:[:/].*)?$'
+    )
+
+    match = domain_re.match(text) or ip_re.match(text)
+    if not match:
+        return user_input
+
+    target = match.group(1)
+
+    # Auto-set the target if not already set
+    if not state.target:
+        state.target = target
+        console.print(f"[dim]  🎯 Target auto-set: {target}[/]")
+        logger.info("Auto-set target: %s", target)
+
+    # Enrich the message so the AI knows to execute immediately
+    return (
+        f"Target: {target}\n"
+        f"Execute full recon immediately using batch_execute — "
+        f"DNS lookup, WHOIS, SSL info, port scan (21,22,80,443,3306,5432,8080,8443), "
+        f"web_fetch homepage, and web_search for known vulns. "
+        f"Do NOT list steps or ask — just call the tools NOW."
+    )
+
+
 def main_loop(
     state: AppState,
     ai: CloudflareAI | None,
@@ -238,7 +329,10 @@ def main_loop(
             continue
 
         display_user_message(user_input)
-        state.add_message("user", user_input)
+
+        # Detect target-like input and auto-set target + inject recon hint
+        enriched = _maybe_enrich_target_input(user_input, state)
+        state.add_message("user", enriched)
 
         if ai is None:
             display_error(t("offline.hint"))
