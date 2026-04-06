@@ -8,20 +8,61 @@ Inspired by claude-code's buildTool() factory pattern.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, ClassVar
+from dataclasses import dataclass, field
+from typing import Any, ClassVar, Optional
+
+
+@dataclass
+class ToolResult:
+    """Standardised result from tool execution."""
+    status: str  # "success" | "error"
+    output: str = ""
+    message: str = ""
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        d: dict[str, Any] = {"status": self.status}
+        if self.output:
+            d["output"] = self.output
+        if self.message:
+            d["message"] = self.message
+        if self.metadata:
+            d.update(self.metadata)
+        return d
+
+
+@dataclass
+class ToolContext:
+    """Runtime context passed to tool.execute()."""
+    state: Any  # AppState — avoids circular import
+    executor: Any  # ToolExecutor
+    risk_level: str = "Low"
 
 
 class BaseTool(ABC):
-    """Abstract base for every tool Jack can call."""
+    """Abstract base for every tool Jack can call.
+
+    Subclasses must define class-level ``name``, ``description``,
+    ``parameters_schema()``.  Optionally override ``execute()`` to
+    move execution logic into the tool itself (preferred pattern).
+    """
 
     name: ClassVar[str]
     description: ClassVar[str]
     risk_aware: ClassVar[bool] = False
+    read_only: ClassVar[bool] = False
+    concurrent_safe: ClassVar[bool] = False
+    max_result_chars: ClassVar[int] = 50_000
 
     @classmethod
     @abstractmethod
     def parameters_schema(cls) -> dict[str, Any]:
         ...
+
+    @classmethod
+    def execute(cls, args: dict[str, Any], context: ToolContext) -> Optional[ToolResult]:
+        """Execute the tool.  Return None to fall back to ToolExecutor dispatch."""
+        return None
 
     @classmethod
     def to_openai_schema(cls) -> dict[str, Any]:

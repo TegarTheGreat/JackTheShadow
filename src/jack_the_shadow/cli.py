@@ -102,6 +102,11 @@ def main() -> None:
 
     display_banner(state)
 
+    # Register slash commands for prompt autocomplete
+    from jack_the_shadow.ui.commands import SLASH_COMMANDS
+    from jack_the_shadow.ui.prompt import register_slash_commands
+    register_slash_commands(SLASH_COMMANDS)
+
     # ── Auth gate: if no creds, force login
     if not is_logged_in():
         logged_in = _run_login_gate()

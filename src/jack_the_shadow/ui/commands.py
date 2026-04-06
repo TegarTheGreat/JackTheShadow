@@ -2,7 +2,7 @@
 Jack The Shadow — Slash Command System
 
 Interactive command menu and all local command handlers.
-All menus use numbered lists with plain input() — no arrow keys needed.
+All menus use interactive ↑↓ selector — no number input needed.
 """
 
 from __future__ import annotations
@@ -12,10 +12,12 @@ from typing import Any, Optional
 from rich.panel import Panel
 from rich.table import Table
 
-from jack_the_shadow.config import MAX_CONTEXT_MESSAGES, MODEL_CATALOG
+from jack_the_shadow.config import MAX_CONTEXT_MESSAGES
+from jack_the_shadow.config.models import get_model_catalog, MODEL_CATALOG
 from jack_the_shadow.i18n import set_language, t
 from jack_the_shadow.ui.console import console
 from jack_the_shadow.ui.messages import display_error, display_info
+from jack_the_shadow.ui.selector import interactive_select
 from jack_the_shadow.utils.logger import get_logger
 
 logger = get_logger("ui.commands")
@@ -56,59 +58,68 @@ def _safe_input(prompt_text: str) -> str:
 
 
 def _display_command_menu() -> Optional[str]:
-    """Show a numbered menu — user types a number or command name."""
-    console.print()
-    table = Table(
-        title="[info]Commands[/]",
-        show_header=False,
-        border_style="blue",
-        padding=(0, 2),
-    )
-    table.add_column("No", style="bold white", width=4)
-    table.add_column("Command", style="menu.cmd", width=12)
-    table.add_column("Description", style="menu.desc")
+    """Show an interactive ↑↓ selector for commands."""
+    labels = [cmd for cmd, _ in SLASH_COMMANDS]
+    descs = [t(desc_key) for _, desc_key in SLASH_COMMANDS]
 
-    for i, (cmd, desc_key) in enumerate(SLASH_COMMANDS, 1):
-        table.add_row(str(i), cmd, t(desc_key))
-
-    console.print(table)
-    console.print("[dim]  Type a number, command name, or press Enter to cancel.[/]")
-
-    choice = _safe_input("  > ")
-    if not choice:
+    idx = interactive_select(labels, title="Commands", descriptions=descs)
+    if idx is None:
         return None
 
-    # By number
-    if choice.isdigit():
-        idx = int(choice) - 1
-        if 0 <= idx < len(SLASH_COMMANDS):
-            selected = SLASH_COMMANDS[idx][0]
-            # Commands that need an argument
-            if selected in ("/model", "/lang", "/target", "/compact"):
-                arg = _safe_input(f"  {selected} → value: ")
-                return f"{selected} {arg}" if arg else selected
-            return selected
-        console.print("[dim]  Invalid number.[/]")
-        return None
+    selected = SLASH_COMMANDS[idx][0]
+    # Commands that need a text argument
+    if selected in ("/target",):
+        console.print(f"[dim]  {selected} → enter value (ESC to cancel):[/]")
+        arg = _safe_input("  > ")
+        return f"{selected} {arg}" if arg else None
+    return selected
 
-    # By name
-    if choice.startswith("/"):
-        return choice
-    return None
+
+def _get_live_catalog() -> dict[str, str]:
+    """Get the model catalog, using live API if credentials are available."""
+    try:
+        from jack_the_shadow.session.auth import load_credentials
+        account_id, api_token = load_credentials()
+        if account_id and api_token:
+            return get_model_catalog(account_id, api_token)
+    except Exception:
+        pass
+    return MODEL_CATALOG
 
 
 def _show_models_list(state: Any) -> None:
+    catalog = _get_live_catalog()
     table = Table(title="[info]Available Models[/]", border_style="blue")
     table.add_column("No", style="bold", width=4)
     table.add_column("Model", style="cyan")
     table.add_column("ID", style="dim")
     table.add_column("", width=3)
 
-    for i, (name, model_id) in enumerate(MODEL_CATALOG.items(), 1):
+    for i, (name, model_id) in enumerate(catalog.items(), 1):
         active = "◉" if model_id == state.model else ""
         table.add_row(str(i), name, model_id, f"[green]{active}[/]")
 
     console.print(table)
+    console.print(f"[dim]  {len(catalog)} models (auto-fetched from Cloudflare)[/]")
+
+
+def _select_model(state: Any) -> Optional[str]:
+    """Interactive model selector. Returns model ID or None on cancel."""
+    catalog = _get_live_catalog()
+    names = list(catalog.keys())
+    ids = list(catalog.values())
+
+    # Pre-select the currently active model
+    try:
+        current_idx = ids.index(state.model)
+    except ValueError:
+        current_idx = 0
+
+    descs = [mid for mid in ids]
+    idx = interactive_select(names, title="Select Model", selected=current_idx, descriptions=descs)
+    if idx is None:
+        return None
+    return ids[idx]
 
 
 def _show_tools_list(tool_names: list[str]) -> None:
@@ -204,8 +215,11 @@ def _handle_login_command() -> None:
             f"\n[info]  {t('login.already_logged_in')}[/]\n"
             f"  [dim]{t('login.source', source=source)}[/]"
         )
-        overwrite = _safe_input(f"\n  {t('login.overwrite_prompt')}")
-        if overwrite.lower() not in ("y", "yes"):
+        idx = interactive_select(
+            ["Yes — overwrite credentials", "No — keep current"],
+            title="Overwrite existing credentials?",
+        )
+        if idx != 0:
             return
 
     console.print(f"\n[info]  {t('login.instruction')}[/]\n")
@@ -237,7 +251,7 @@ def _handle_logout_command() -> None:
 
 
 def _handle_history_command() -> None:
-    """List past sessions and allow resuming one."""
+    """List past sessions and allow resuming one via interactive selector."""
     from jack_the_shadow.session.history import list_sessions
 
     sessions = list_sessions()
@@ -245,23 +259,14 @@ def _handle_history_command() -> None:
         console.print("[dim]  No saved sessions found.[/]")
         return
 
-    table = Table(title="[info]Saved Sessions[/]", border_style="blue")
-    table.add_column("No", style="bold", width=4)
-    table.add_column("Date", style="dim", width=20)
-    table.add_column("Target", style="cyan", width=25)
-    table.add_column("Messages", style="white", width=10)
+    labels = []
+    for s in sessions:
+        target = s["target"] or "(none)"
+        labels.append(f"{s['date']}  │  {target}  │  {s['messages']} msgs")
 
-    for i, s in enumerate(sessions, 1):
-        table.add_row(str(i), s["date"], s["target"] or "(none)", str(s["messages"]))
-
-    console.print(table)
-    console.print("[dim]  Type a number to resume, or Enter to cancel.[/]")
-
-    choice = _safe_input("  > ")
-    if choice.isdigit():
-        idx = int(choice) - 1
-        if 0 <= idx < len(sessions):
-            return sessions[idx]["id"]  # type: ignore[return-value]
+    idx = interactive_select(labels, title="Resume a session")
+    if idx is not None:
+        return sessions[idx]["id"]
     return None
 
 
@@ -378,9 +383,19 @@ def _handle_permissions_command(arg: str) -> None:
     )
 
     parts = arg.split(maxsplit=2) if arg else []
-    sub = parts[0].lower() if parts else "list"
+    sub = parts[0].lower() if parts else ""
 
-    if sub == "list" or not arg:
+    if not sub:
+        # Interactive sub-command selector
+        idx = interactive_select(
+            ["List rules", "Add rule", "Remove rule", "Clear all"],
+            title="Permission Rules",
+        )
+        if idx is None:
+            return
+        sub = ["list", "add", "remove", "clear"][idx]
+
+    if sub == "list":
         rules = list_permission_rules()
         if not rules:
             console.print("[dim]  No permission rules set. All risky tools require approval.[/]")
@@ -472,49 +487,40 @@ def handle_local_command(
         return True
 
     if cmd == "/model":
-        if not arg:
-            _show_models_list(state)
-            console.print("[dim]  Type a number or model ID, or Enter to cancel.[/]")
-            arg = _safe_input("  > ")
-            if not arg:
-                return True
-
-        if arg.isdigit():
-            idx = int(arg) - 1
-            ids = list(MODEL_CATALOG.values())
-            if 0 <= idx < len(ids):
-                state.model = ids[idx]
+        if arg:
+            # Direct argument: try to match
+            catalog = _get_live_catalog()
+            all_ids = list(catalog.values())
+            if arg in all_ids or arg.startswith("@cf/"):
+                state.model = arg
                 display_info(t("model.switched", model=state.model))
                 return True
-
-        all_ids = list(MODEL_CATALOG.values())
-        if arg in all_ids or arg.startswith("@cf/"):
-            state.model = arg
-            display_info(t("model.switched", model=state.model))
-            return True
-
-        for name, mid in MODEL_CATALOG.items():
-            if arg.lower() in name.lower():
-                state.model = mid
+            for name, mid in catalog.items():
+                if arg.lower() in name.lower():
+                    state.model = mid
+                    display_info(t("model.switched", model=state.model))
+                    return True
+            display_error(t("model.invalid"))
+        else:
+            # Interactive selector
+            model_id = _select_model(state)
+            if model_id:
+                state.model = model_id
                 display_info(t("model.switched", model=state.model))
-                return True
-
-        display_error(t("model.invalid"))
         return True
 
     if cmd == "/lang":
         if not arg:
-            console.print("[dim]  1. English  2. Bahasa Indonesia[/]")
-            choice = _safe_input("  > ")
-            if choice == "1":
+            idx = interactive_select(
+                ["English", "Bahasa Indonesia"],
+                title="Select Language",
+            )
+            if idx == 0:
                 arg = "en"
-            elif choice == "2":
+            elif idx == 1:
                 arg = "id"
-            elif choice in ("en", "id"):
-                arg = choice
             else:
-                display_error(t("lang.invalid"))
-                return True
+                return True  # cancelled
 
         if arg in ("en", "id"):
             state.language = arg
@@ -558,7 +564,9 @@ def handle_local_command(
         return True
 
     if cmd == "/help":
-        _display_command_menu()
+        selected = _display_command_menu()
+        if selected:
+            return handle_local_command(selected, state, tool_names, executor, cost_tracker)
         return True
 
     if cmd == "/doctor":

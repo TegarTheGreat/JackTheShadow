@@ -9,7 +9,7 @@ Supports live AI reconnection via /login and SSE streaming.
 from __future__ import annotations
 
 import json
-from typing import Any, Callable, Iterator, NoReturn, Optional
+from typing import Any, Callable, NoReturn, Optional
 
 from jack_the_shadow.config import STREAM_RESPONSES
 from jack_the_shadow.core.engine import CloudflareAI, CloudflareAIError
@@ -19,19 +19,18 @@ from jack_the_shadow.tools.executor import ToolExecutor
 from jack_the_shadow.ui import (
     console,
     display_ai_message,
-    display_ai_stream,
     display_error,
     display_info,
     display_user_message,
     handle_local_command,
     prompt_user,
     status_spinner,
+    StreamingDisplay,
 )
 from jack_the_shadow.utils.logger import get_logger
 
 logger = get_logger("core.orchestrator")
 
-# Type for the factory that creates AI clients (for live reconnect)
 AIFactory = Callable[[str], Optional[CloudflareAI]]
 
 
@@ -71,64 +70,6 @@ def process_tool_calls(
         state.add_tool_result(call_id, result_str)
 
 
-def _query_streaming(
-    ai: CloudflareAI,
-    state: AppState,
-    executor: ToolExecutor,
-    tool_schemas: list[dict[str, Any]],
-    cost_tracker: Any = None,
-) -> None:
-    """AI query using SSE streaming for real-time token display."""
-    max_tool_rounds = 15
-
-    for round_num in range(max_tool_rounds):
-        state.truncate_context()
-        messages = state.get_messages_for_api()
-
-        if round_num > 0:
-            with status_spinner(t("spinner.tool_result")):
-                pass  # brief visual cue before next round
-
-        try:
-            result = ai.chat_stream(messages, tools=tool_schemas, cost_tracker=cost_tracker)
-        except CloudflareAIError as exc:
-            display_error(str(exc))
-            logger.error("AI stream failed: %s", exc)
-            return
-
-        # If chat_stream returns a dict, it's a tool-call response
-        if isinstance(result, dict):
-            state.add_assistant_message(result)
-            tool_calls = result.get("tool_calls")
-            if tool_calls:
-                process_tool_calls(tool_calls, executor, state)
-                continue
-            content = result.get("content", "")
-            if content:
-                display_ai_message(content)
-            return
-
-        # It's a generator — stream tokens to UI
-        stream_result = display_ai_stream(result)
-
-        # display_ai_stream may return a dict if tool_calls arrived mid-stream
-        if isinstance(stream_result, dict):
-            state.add_assistant_message(stream_result)
-            tool_calls = stream_result.get("tool_calls")
-            if tool_calls:
-                process_tool_calls(tool_calls, executor, state)
-                continue
-            return
-
-        # Normal text response
-        if stream_result:
-            state.add_message("assistant", stream_result)
-        return
-
-    display_error(t("tool.max_rounds", limit=max_tool_rounds))
-    logger.warning("Tool-call loop hit max rounds (%d)", max_tool_rounds)
-
-
 def query_ai(
     ai: CloudflareAI,
     state: AppState,
@@ -138,24 +79,57 @@ def query_ai(
 ) -> None:
     """Run the AI query with multi-round tool calling (max 15 rounds).
 
-    Uses streaming when STREAM_RESPONSES is enabled.
+    Uses SSE streaming for text-only responses when STREAM_RESPONSES is on.
+    Always uses non-streaming for tool-call rounds (more reliable).
     """
-    if STREAM_RESPONSES:
-        return _query_streaming(ai, state, executor, tool_schemas, cost_tracker)
-
     max_tool_rounds = 15
 
     for round_num in range(max_tool_rounds):
         state.truncate_context()
         messages = state.get_messages_for_api()
 
+        # ── Streaming path (first round only, text responses) ─────────
+        if STREAM_RESPONSES and round_num == 0:
+            display = StreamingDisplay()
+            try:
+                assistant_msg = ai.chat_stream(
+                    messages,
+                    tools=tool_schemas,
+                    cost_tracker=cost_tracker,
+                    on_token=display.on_token,
+                )
+            except CloudflareAIError as exc:
+                display.abort()
+                display_error(str(exc))
+                logger.error("AI query failed: %s", exc)
+                return
+
+            state.add_assistant_message(assistant_msg)
+
+            tool_calls = assistant_msg.get("tool_calls")
+            if tool_calls:
+                # Don't show text panel for tool-call responses
+                process_tool_calls(tool_calls, executor, state)
+                continue
+
+            # Pure text response — render the streamed content
+            content = display.finish()
+            if not content:
+                content = assistant_msg.get("content", "")
+                if content:
+                    display_ai_message(content)
+            return
+
+        # ── Non-streaming path (tool rounds & fallback) ───────────────
         spinner_msg = (
             t("spinner.thinking") if round_num == 0
             else t("spinner.tool_result")
         )
         with status_spinner(spinner_msg):
             try:
-                assistant_msg = ai.chat(messages, tools=tool_schemas, cost_tracker=cost_tracker)
+                assistant_msg = ai.chat(
+                    messages, tools=tool_schemas, cost_tracker=cost_tracker,
+                )
             except CloudflareAIError as exc:
                 display_error(str(exc))
                 logger.error("AI query failed: %s", exc)

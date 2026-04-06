@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import time
-from typing import Any, Callable, Iterator, Optional
+from typing import Any, Callable, Optional
 
 import requests
 
@@ -90,12 +90,17 @@ class CloudflareAI:
         messages: list[dict[str, Any]],
         tools: Optional[list[dict[str, Any]]] = None,
         cost_tracker: Optional[Any] = None,
-    ) -> Iterator[str] | dict[str, Any]:
-        """Streaming chat — yields content tokens or returns tool-call dict.
+        on_token: Optional[Callable[[str], None]] = None,
+    ) -> dict[str, Any]:
+        """Streaming chat that always returns a complete assistant message dict.
 
-        When the model returns tool_calls, streaming is not possible; this
-        method falls back to a normal ``chat()`` call and returns the dict.
-        When the model returns text, it yields string chunks as they arrive.
+        Unlike a generator, this is a regular function so ``return`` works
+        correctly for both text-only and tool-call responses.
+
+        Args:
+            on_token: Optional callback invoked with each text chunk as it
+                      arrives from the SSE stream.  Used by the UI to display
+                      tokens in real-time.
         """
         clean = self._sanitise_messages(messages)
         payload = self._build_payload(clean, tools, stream=True)
@@ -108,6 +113,7 @@ class CloudflareAI:
             )
             if resp.status_code != 200:
                 resp.close()
+                logger.warning("Stream HTTP %d, falling back to non-stream", resp.status_code)
                 return self.chat(messages, tools, cost_tracker)
 
             content_parts: list[str] = []
@@ -125,11 +131,11 @@ class CloudflareAI:
                 except json.JSONDecodeError:
                     continue
 
-                delta = (
-                    chunk.get("choices", [{}])[0]
-                    .get("delta", {})
-                )
-                fr = chunk.get("choices", [{}])[0].get("finish_reason")
+                choices = chunk.get("choices", [{}])
+                if not choices:
+                    continue
+                delta = choices[0].get("delta", {})
+                fr = choices[0].get("finish_reason")
                 if fr:
                     finish_reason = fr
 
@@ -137,7 +143,8 @@ class CloudflareAI:
                 text = delta.get("content")
                 if text:
                     content_parts.append(text)
-                    yield text
+                    if on_token is not None:
+                        on_token(text)
 
                 # Accumulate tool_call deltas
                 tc_deltas = delta.get("tool_calls")
@@ -159,23 +166,30 @@ class CloudflareAI:
             resp.close()
             duration_ms = (time.time() - start) * 1000
 
-            # If we got tool calls, return a dict instead of yielding
-            if tool_call_chunks and finish_reason == "tool_calls":
-                msg: dict[str, Any] = {
-                    "role": "assistant",
-                    "content": "".join(content_parts) or "",
-                    "tool_calls": [
-                        tool_call_chunks[i]
-                        for i in sorted(tool_call_chunks.keys())
-                    ],
-                }
-                if cost_tracker is not None:
-                    self._track_cost_estimated(
-                        cost_tracker, messages, msg, duration_ms,
-                    )
-                return msg
+            # Build the assistant message
+            msg: dict[str, Any] = {
+                "role": "assistant",
+                "content": "".join(content_parts) or "",
+            }
 
-        except (requests.exceptions.RequestException, StopIteration):
+            if tool_call_chunks:
+                msg["tool_calls"] = [
+                    tool_call_chunks[i]
+                    for i in sorted(tool_call_chunks.keys())
+                ]
+
+            if cost_tracker is not None:
+                self._track_cost_estimated(cost_tracker, messages, msg, duration_ms)
+
+            # If no content and no tool_calls, something went wrong
+            if not msg["content"] and "tool_calls" not in msg:
+                logger.warning("Empty stream response, finish_reason=%s", finish_reason)
+                msg["content"] = ""
+
+            return msg
+
+        except requests.exceptions.RequestException as exc:
+            logger.warning("Stream error (%s), falling back to non-stream", exc)
             return self.chat(messages, tools, cost_tracker)
 
     # ── Internal helpers ──────────────────────────────────────────────

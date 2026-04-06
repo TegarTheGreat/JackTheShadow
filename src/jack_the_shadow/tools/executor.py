@@ -105,14 +105,30 @@ class ToolExecutor:
             return result("error", message=msg)
 
     def request_approval(self, action: str, detail: str, risk_level: str) -> bool:
-        """HITL interceptor — checks permission patterns, YOLO mode, then prompts user."""
-        from jack_the_shadow.core.permissions import check_auto_approve
+        """HITL interceptor — 5-layer permission cascade."""
+        from jack_the_shadow.core.permissions import check_permission
 
-        if check_auto_approve(action, detail):
-            logger.info("Auto-approved by permission rule: %s", action)
+        decision = check_permission(
+            action,
+            detail,
+            yolo_mode=self.state.yolo_mode,
+            read_only=False,
+        )
+
+        if decision.behavior == "allow":
+            if decision.source == "yolo":
+                display_yolo_auto_approve(action)
+            logger.info(
+                "Approved [%s]: %s — %s",
+                decision.source, action, decision.reason,
+            )
             return True
-        if self.state.yolo_mode:
-            display_yolo_auto_approve(action)
-            logger.info("YOLO auto-approved: %s [%s]", action, risk_level)
-            return True
+
+        if decision.behavior == "deny":
+            from jack_the_shadow.ui.messages import display_error
+            display_error(f"Blocked: {decision.reason}")
+            logger.warning("DENIED: %s — %s", action, decision.reason)
+            return False
+
+        # behavior == "ask"
         return prompt_approval(action, detail, risk_level)

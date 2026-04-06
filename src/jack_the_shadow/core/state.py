@@ -53,6 +53,14 @@ class AppState:
         prompt = get_system_prompt(self.language)
         if self.target:
             prompt += f"\n\n## Active Target\nCurrent target scope: `{self.target}`"
+        # Inject persistent memory (JSHADOW.md, notes, etc.)
+        try:
+            from jack_the_shadow.core.memory import build_memory_prompt
+            memory_section = build_memory_prompt()
+            if memory_section:
+                prompt += memory_section
+        except Exception:
+            pass  # memory discovery is optional
         system = {"role": "system", "content": prompt}
         return [system] + list(self.context_messages)
 
