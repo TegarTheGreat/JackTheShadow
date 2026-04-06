@@ -15,9 +15,11 @@ cybersecurity spectrum: **penetration testing**, **CTF challenges**,
 **bug bounty hunting**, **security research**, **digital forensics**,
 and **OSINT**.
 
-- **22 built-in tools** — bash, file ops, grep, glob, HTTP, web fetch
+- **30 built-in tools** — bash, file ops, grep, glob, HTTP, web fetch
   (with Cloudflare bypass), web search, git, Python REPL, batch parallel
-  execution, CVE lookup, persistent memory, attack plan tracker, and more
+  execution, CVE lookup, persistent memory, attack plan tracker, payload
+  generator, encoder/decoder, network recon, report generator, exploit
+  search, wordlist manager, hash analyzer, Shodan integration, and more
 - **Human-in-the-Loop (HITL)** — color-coded risk panels (Low → Critical)
   with YOLO mode and granular permission patterns for auto-approve
 - **Bilingual** — English (default) and Bahasa Indonesia with casual
@@ -141,18 +143,28 @@ Type `/` at the prompt for an interactive numbered menu, or use directly:
 | `python_repl` | ✅ | Execute Python code |
 | `ask_user` | — | Ask operator a question |
 | `mcp_call` | ✅ | Call MCP server tools |
+| `payload_generate` | — | Generate injection payloads (SQLi, XSS, SSTI, LFI, etc.) |
+| `encode_decode` | — | Encode/decode: base64, URL, hex, HTML, JWT, hashes |
+| `network_recon` | ✅ | DNS, WHOIS, port scan, SSL check, traceroute |
+| `report_generate` | — | Generate pentest reports from findings |
+| `exploit_search` | — | Search Exploit-DB / searchsploit |
+| `wordlist_manage` | — | Find, generate, preview wordlists |
+| `hash_analyze` | — | Identify, generate, and crack hashes |
+| `shodan_recon` | — | Shodan host lookup, search, exploit DB |
 
 ## Session Directory
 
 ```
 ~/.jshadow/
 ├── credentials.json   # Cloudflare auth (chmod 600)
-├── config.json        # User preferences (model, language)
+├── config.json        # User preferences (model, language, Shodan API key)
 ├── permissions.json   # Auto-approve rules per tool
 ├── sessions/          # Saved conversation history (JSONL)
+├── wordlists/         # Custom generated wordlists
 └── memory/
     ├── notes.md       # Persistent findings (recon, creds, vulns)
-    └── todos.json     # Attack plan task list
+    ├── todos.json     # Attack plan task list
+    └── report_*.md    # Generated pentest reports
 ```
 
 ## Architecture

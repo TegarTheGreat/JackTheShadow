@@ -29,27 +29,31 @@ class ToolRegistry:
 
 
 def build_default_registry() -> ToolRegistry:
-    """Create a registry pre-loaded with all 26 built-in tools."""
+    """Create a registry pre-loaded with all 30 built-in tools."""
     from jack_the_shadow.tools.builtin.ask import AskUserTool
     from jack_the_shadow.tools.builtin.bash import BashExecuteTool
     from jack_the_shadow.tools.builtin.batch import BatchExecuteTool
     from jack_the_shadow.tools.builtin.cve import CVELookupTool
     from jack_the_shadow.tools.builtin.directory import ListDirectoryTool
     from jack_the_shadow.tools.builtin.doctor import DoctorTool
+    from jack_the_shadow.tools.builtin.encoder import EncoderDecoderTool
     from jack_the_shadow.tools.builtin.exploit_search import ExploitSearchTool
     from jack_the_shadow.tools.builtin.files import FileEditTool, FileReadTool, FileWriteTool
     from jack_the_shadow.tools.builtin.git import GitCommandTool
+    from jack_the_shadow.tools.builtin.hash_tool import HashAnalyzeTool
     from jack_the_shadow.tools.builtin.http import HttpRequestTool
     from jack_the_shadow.tools.builtin.memory import MemoryReadTool, MemoryWriteTool
     from jack_the_shadow.tools.builtin.network import NetworkReconTool
     from jack_the_shadow.tools.builtin.patch import ApplyPatchTool
+    from jack_the_shadow.tools.builtin.payload import PayloadGenerateTool
     from jack_the_shadow.tools.builtin.repl import ReplTool
     from jack_the_shadow.tools.builtin.report import ReportGenerateTool
     from jack_the_shadow.tools.builtin.search import GlobFindTool, GrepSearchTool
+    from jack_the_shadow.tools.builtin.shodan_tool import ShodanTool
     from jack_the_shadow.tools.builtin.todo import TodoReadTool, TodoWriteTool
     from jack_the_shadow.tools.builtin.web_fetch import WebFetchTool
-    from jack_the_shadow.tools.builtin.wordlist import WordlistTool
     from jack_the_shadow.tools.builtin.web_search import WebSearchTool
+    from jack_the_shadow.tools.builtin.wordlist import WordlistTool
     from jack_the_shadow.tools.mcp.tool import MCPCallTool
 
     registry = ToolRegistry()
@@ -67,7 +71,6 @@ def build_default_registry() -> ToolRegistry:
         CVELookupTool,
         MemoryReadTool,
         MemoryWriteTool,
-        NetworkReconTool,
         TodoReadTool,
         TodoWriteTool,
         GitCommandTool,
@@ -75,11 +78,16 @@ def build_default_registry() -> ToolRegistry:
         BatchExecuteTool,
         ApplyPatchTool,
         ReplTool,
-        ReportGenerateTool,
         AskUserTool,
         MCPCallTool,
+        PayloadGenerateTool,
+        EncoderDecoderTool,
+        NetworkReconTool,
+        ReportGenerateTool,
         ExploitSearchTool,
         WordlistTool,
+        HashAnalyzeTool,
+        ShodanTool,
     ]:
         registry.register(tool_cls)
     return registry
