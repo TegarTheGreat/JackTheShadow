@@ -3,7 +3,7 @@ Jack The Shadow — Orchestrator
 
 The AI ↔ tool-call loop extracted from main.py for clean separation.
 Handles multi-round tool calling, result feeding, display, and session auto-save.
-Supports live AI reconnection via /login and SSE streaming.
+Supports live AI reconnection via /login, SSE streaming, and session resume.
 """
 
 from __future__ import annotations
@@ -218,37 +218,103 @@ def query_ai(
 
 
 def _auto_save_session(state: AppState) -> None:
-    """Auto-save the session on exit."""
+    """Finalize the active SessionWriter or do a one-shot save as fallback."""
     try:
+        writer = getattr(state, "_session_writer", None)
+        if writer is not None:
+            path = writer.finalize(state)
+            if path:
+                console.print(f"\n[dim]  Session saved → {path}[/]")
+            return
+
+        # Fallback: no writer (old path or crash before writer init)
         from jack_the_shadow.session.history import save_session
         if state.context_messages:
             path = save_session(state)
             if path:
-                console.print(f"[dim]  Session saved → {path}[/]")
+                console.print(f"\n[dim]  Session saved → {path}[/]")
     except Exception as exc:
         logger.warning("Auto-save failed: %s", exc)
         console.print(f"[yellow dim]  ⚠ Session save failed: {exc}[/]")
 
 
-def _resume_session(session_id: str, state: AppState) -> None:
-    """Load a previous session into current state."""
+def _resume_session(session_id: str, state: AppState) -> bool:
+    """Load a previous session into current state.
+
+    Restores ALL state: target, model, language, phase, yolo_mode, messages.
+    Returns True if resume succeeded.
+    """
+    from rich.panel import Panel
+    from rich.table import Table
+
+    from jack_the_shadow.i18n import set_language
     from jack_the_shadow.session.history import load_session
 
     data = load_session(session_id)
     if data is None:
         display_error(f"Session '{session_id}' not found.")
-        return
+        return False
 
     meta = data["metadata"]
     messages = data["messages"]
 
-    if meta.get("target"):
-        state.target = meta["target"]
+    if not messages:
+        display_error("Session is empty — nothing to resume.")
+        return False
+
+    # Restore full state from metadata
+    state.restore_from_metadata(meta)
     state.context_messages = messages
-    display_info(
-        f"Resumed session: {meta.get('date', '?')} — "
-        f"{len(messages)} messages, target: {meta.get('target', '(none)')}"
+
+    # Sync language if changed
+    if meta.get("language") and meta["language"] != state.language:
+        set_language(meta["language"])
+
+    # Display resume summary panel
+    table = Table(show_header=False, box=None, padding=(0, 2))
+    table.add_column(style="dim")
+    table.add_column(style="bold")
+    table.add_row("Session", meta.get("session_id", session_id))
+    table.add_row("Date", meta.get("date", "?"))
+    table.add_row("Target", meta.get("target") or "(none)")
+    table.add_row("Model", meta.get("model", "?"))
+    table.add_row("Phase", meta.get("phase", "recon"))
+    table.add_row("Messages", str(len(messages)))
+    if meta.get("tool_count"):
+        table.add_row("Tool calls", str(meta["tool_count"]))
+    if meta.get("duration_seconds"):
+        dur = meta["duration_seconds"]
+        table.add_row("Duration", f"{int(dur // 60)}m {int(dur % 60)}s")
+    if meta.get("yolo_mode"):
+        table.add_row("YOLO", "[red bold]ON[/]")
+
+    console.print(Panel(
+        table,
+        title="[bold green]⏪ Session Resumed[/]",
+        border_style="green",
+    ))
+
+    # Show last few messages as preview
+    preview_msgs = [
+        m for m in messages[-6:]
+        if m.get("role") in ("user", "assistant") and m.get("content")
+    ]
+    if preview_msgs:
+        console.print("[dim]  Last messages:[/]")
+        for m in preview_msgs[-3:]:
+            role = "You" if m["role"] == "user" else "Jack"
+            content = str(m.get("content", ""))[:100]
+            if len(str(m.get("content", ""))) > 100:
+                content += "..."
+            icon = "┃" if m["role"] == "user" else "🗡"
+            console.print(f"[dim]  {icon} {role}: {content}[/]")
+        console.print()
+
+    logger.info(
+        "Resumed session %s: %d msgs, target=%s, phase=%s",
+        session_id, len(messages), state.target, state.phase,
     )
+    return True
 
 
 def _maybe_enrich_target_input(user_input: str, state: AppState) -> str:
@@ -307,6 +373,7 @@ def main_loop(
     tool_names: list[str],
     ai_factory: AIFactory | None = None,
     cost_tracker: Any = None,
+    resume_session_id: str | None = None,
 ) -> NoReturn:
     """The main interactive prompt loop.
 
@@ -314,7 +381,18 @@ def main_loop(
         ai_factory: Optional callable(model) -> CloudflareAI for reconnecting
                     after /login without restarting.
         cost_tracker: Optional CostTracker instance for API usage tracking.
+        resume_session_id: Optional session ID to resume at startup.
     """
+    # Initialize incremental session writer
+    from jack_the_shadow.session.history import SessionWriter
+    writer = SessionWriter(state)
+    state._session_writer = writer
+    logger.info("Session writer initialized: %s", writer.session_id)
+
+    # Handle startup resume if requested
+    if resume_session_id:
+        _resume_session(resume_session_id, state)
+
     while True:
         try:
             user_input = prompt_user()
@@ -332,6 +410,9 @@ def main_loop(
             # Handle /history resume
             if isinstance(cmd_result, tuple) and cmd_result[0] == "resume":
                 _resume_session(cmd_result[1], state)
+                # Create a new writer for the resumed session continuation
+                writer = SessionWriter(state)
+                state._session_writer = writer
                 continue
 
             # Live reconnect after /login

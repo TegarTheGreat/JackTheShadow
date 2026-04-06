@@ -40,7 +40,14 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="jshadow",
         description="Jack The Shadow — Autonomous Cybersecurity Agent",
-        epilog="Examples:\n  jshadow\n  jshadow --target 192.168.1.0/24\n  jshadow -l id",
+        epilog=(
+            "Examples:\n"
+            "  jshadow\n"
+            "  jshadow --target 192.168.1.0/24\n"
+            "  jshadow -l id\n"
+            "  jshadow --continue           # Resume last session\n"
+            "  jshadow --resume 20260406    # Resume specific session"
+        ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
@@ -54,6 +61,14 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--lang", "-l", default=DEFAULT_LANGUAGE, choices=["en", "id"],
         help="Language: en (English, default) or id (Bahasa Indonesia).",
+    )
+    parser.add_argument(
+        "--resume", "-r", nargs="?", const="__last__", default=None, metavar="SESSION_ID",
+        help="Resume a previous session. Without ID: resume last session. With ID: resume that session.",
+    )
+    parser.add_argument(
+        "--continue", "-c", dest="continue_session", action="store_true",
+        help="Shorthand for --resume (resume last session).",
     )
     return parser
 
@@ -101,6 +116,26 @@ def main() -> None:
     if lang != args.lang:
         set_language(lang)
 
+    # ── Resolve resume request ────────────────────────────────────────
+    resume_session_id: str | None = None
+    resume_flag = args.resume or ("__last__" if args.continue_session else None)
+
+    if resume_flag:
+        from jack_the_shadow.session.history import get_last_session_id, list_sessions
+        if resume_flag == "__last__":
+            last_id = get_last_session_id()
+            if last_id:
+                resume_session_id = last_id
+            else:
+                # No last session — try to show session list
+                sessions = list_sessions(limit=5)
+                if sessions:
+                    console.print("[yellow]No last session found. Use /history to browse.[/]")
+                else:
+                    console.print("[dim]No previous sessions found.[/]")
+        else:
+            resume_session_id = resume_flag
+
     state = AppState(
         model=model,
         language=lang,
@@ -136,16 +171,22 @@ def main() -> None:
     else:
         display_info(t("auth.connected"))
 
-    # Show welcome message
-    console.print(f"\n{t('welcome.message')}\n")
+    # Show welcome message (skip if resuming — resume panel replaces it)
+    if not resume_session_id:
+        console.print(f"\n{t('welcome.message')}\n")
 
     logger.info(
-        "Starting Jack — target=%s model=%s lang=%s tools=%s",
+        "Starting Jack — target=%s model=%s lang=%s tools=%s resume=%s",
         state.target or "(none)", state.model, state.language, tool_names,
+        resume_session_id or "(none)",
     )
 
     try:
-        main_loop(state, ai, executor, tool_schemas, tool_names, _create_ai_client, cost_tracker)
+        main_loop(
+            state, ai, executor, tool_schemas, tool_names,
+            _create_ai_client, cost_tracker,
+            resume_session_id=resume_session_id,
+        )
     except SystemExit:
         # Save user preferences for next launch
         update_user_config(model=state.model, language=state.language)

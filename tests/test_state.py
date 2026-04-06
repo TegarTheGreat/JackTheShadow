@@ -30,7 +30,9 @@ def test_compact_context(state):
         state.add_message("user", f"msg {i}")
     dropped = state.compact_context(keep=5)
     assert dropped == 15
-    assert len(state.context_messages) == 5
+    # 5 kept messages + 1 summary marker = 6 total
+    assert len(state.context_messages) == 6
+    assert "compacted" in state.context_messages[0]["content"].lower()
 
 
 def test_get_messages_for_api_includes_system(state):

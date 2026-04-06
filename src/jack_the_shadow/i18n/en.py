@@ -112,6 +112,12 @@ STRINGS: dict[str, str] = {
     # ── Goodbye
     "goodbye": "👋 Jack fades into the shadows...",
 
+    # ── Session resume
+    "resume.title": "⏪ Session Resumed",
+    "resume.no_last": "No previous session found. Start a new one or use /history.",
+    "resume.empty": "Session is empty — nothing to resume.",
+    "resume.last_msgs": "Last messages:",
+
     # ── Offline hint (shown when user types but no AI connected)
     "offline.hint": (
         "Jack's brain isn't connected yet. Use [bold]/login[/bold] to hook up "

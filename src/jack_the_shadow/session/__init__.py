@@ -23,3 +23,7 @@ from jack_the_shadow.session.user_config import (  # noqa: F401
     update_user_config,
     get_user_pref,
 )
+from jack_the_shadow.session.history import (  # noqa: F401
+    SessionWriter,
+    get_last_session_id,
+)

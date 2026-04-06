@@ -112,6 +112,12 @@ STRINGS: dict[str, str] = {
     # ── Goodbye
     "goodbye": "👋 Jack menghilang ke dalam bayangan...",
 
+    # ── Session resume
+    "resume.title": "⏪ Session Dilanjutkan",
+    "resume.no_last": "Gak ada session sebelumnya. Mulai baru atau pake /history.",
+    "resume.empty": "Session kosong — gak ada yang bisa dilanjutin.",
+    "resume.last_msgs": "Pesan terakhir:",
+
     # ── Offline hint (ditampilkan saat user ngetik tapi AI belum konek)
     "offline.hint": (
         "Otak Jack belum terkoneksi. Pake [bold]/login[/bold] untuk konek "

@@ -290,8 +290,20 @@ def _handle_history_command() -> None:
 
     labels = []
     for s in sessions:
-        target = s["target"] or "(none)"
-        labels.append(f"{s['date']}  │  {target}  │  {s['messages']} msgs")
+        target = s["target"] or "(no target)"
+        phase = s.get("phase", "")
+        tools = s.get("tools", 0)
+        dur = s.get("duration", 0)
+        dur_str = f"{int(dur // 60)}m{int(dur % 60)}s" if dur else ""
+
+        parts = [s["date"][:16], target, f"{s['messages']}msg"]
+        if tools:
+            parts.append(f"{tools}tools")
+        if dur_str:
+            parts.append(dur_str)
+        if phase:
+            parts.append(phase)
+        labels.append("  │  ".join(parts))
 
     idx = interactive_select(labels, title="Resume a session")
     if idx is not None:
