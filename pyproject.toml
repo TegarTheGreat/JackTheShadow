@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jack-the-shadow"
+version = "0.1.0"
+description = "Autonomous Penetration-Testing CLI Agent powered by Cloudflare Workers AI"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    { name = "Jack The Shadow Contributors" },
+]
+keywords = ["pentesting", "security", "cli", "agent", "cloudflare"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+]
+dependencies = [
+    "rich>=13.0.0",
+    "requests>=2.31.0",
+    "python-dotenv>=1.0.0",
+    "cloudscraper>=1.2.71",
+    "beautifulsoup4>=4.12.0",
+    "markdownify>=0.13.0",
+    "ddgs>=7.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.4.0",
+]
+
+[project.scripts]
+jack = "jack_the_shadow.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/YOUR_USERNAME/JackTheShadow"
+Repository = "https://github.com/YOUR_USERNAME/JackTheShadow"
+Issues = "https://github.com/YOUR_USERNAME/JackTheShadow/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
