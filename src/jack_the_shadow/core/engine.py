@@ -73,8 +73,14 @@ class CloudflareAI:
 
         if cost_tracker is not None:
             try:
-                in_tokens = sum(len(m.get("content", "")) // 4 for m in messages)
-                out_tokens = len(result.get("content", "")) // 4
+                # Use real token counts from API if available
+                usage = raw.get("result", {}).get("usage", {})
+                in_tokens = usage.get("prompt_tokens") or sum(
+                    len(m.get("content", "")) // 4 for m in messages
+                )
+                out_tokens = usage.get("completion_tokens") or len(
+                    result.get("content", "")
+                ) // 4
                 cost_tracker.record_call(
                     model=self.model,
                     input_tokens=in_tokens,
@@ -168,7 +174,11 @@ class CloudflareAI:
         )
 
     def _parse_response(self, raw: dict[str, Any]) -> dict[str, Any]:
-        """Extract the assistant message from Cloudflare's response envelope."""
+        """Extract the assistant message from Cloudflare's response envelope.
+
+        Supports both legacy format (result.response) and OpenAI-compatible
+        format (result.choices[0].message).
+        """
         if not raw.get("success", False):
             errors = raw.get("errors", [])
             msg = (
@@ -181,11 +191,23 @@ class CloudflareAI:
         result = raw.get("result", {})
         assistant_msg: dict[str, Any] = {"role": "assistant"}
 
-        content = result.get("response", "")
+        # ── Try OpenAI-compatible format first (choices[].message) ────
+        choices = result.get("choices")
+        if choices and isinstance(choices, list) and len(choices) > 0:
+            msg = choices[0].get("message", {})
+            content = msg.get("content", "")
+            tool_calls = msg.get("tool_calls")
+            # Filter empty tool_calls arrays
+            if isinstance(tool_calls, list) and len(tool_calls) == 0:
+                tool_calls = None
+        else:
+            # ── Legacy Cloudflare format (result.response) ────────────
+            content = result.get("response", "")
+            tool_calls = result.get("tool_calls")
+
         if content:
             assistant_msg["content"] = content
 
-        tool_calls = result.get("tool_calls")
         if tool_calls:
             normalised: list[dict[str, Any]] = []
             for i, tc in enumerate(tool_calls):
@@ -208,6 +230,7 @@ class CloudflareAI:
             assistant_msg["tool_calls"] = normalised
 
         if "content" not in assistant_msg and "tool_calls" not in assistant_msg:
+            logger.warning("Empty AI response: %s", json.dumps(result)[:500])
             assistant_msg["content"] = "(Jack tidak memberikan respons.)"
 
         return assistant_msg
