@@ -3,6 +3,7 @@ Jack The Shadow — Tool Executor with HITL Interceptor
 
 Dispatches tool calls to their concrete implementations and enforces
 human-in-the-loop approval (unless YOLO mode is active).
+Safe/read-only tools skip approval entirely.
 """
 
 from __future__ import annotations
@@ -17,6 +18,34 @@ from jack_the_shadow.ui.panels import display_yolo_auto_approve, prompt_approval
 from jack_the_shadow.utils.logger import get_logger
 
 logger = get_logger("tools.executor")
+
+# Tools that never need approval (read-only / internal / passive recon)
+_SAFE_TOOLS: frozenset[str] = frozenset({
+    "file_read",
+    "grep_search",
+    "glob_find",
+    "list_directory",
+    "web_search",
+    "web_fetch",
+    "cve_lookup",
+    "memory_read",
+    "memory_write",
+    "todo_read",
+    "todo_write",
+    "doctor_check",
+    "encode_decode",
+    "hash_analyze",
+    "exploit_search",
+    "wordlist_manage",
+    "report_generate",
+    "ask_user",
+    "shodan_recon",
+})
+
+# network_recon actions that are passive (no approval needed)
+_SAFE_NETWORK_ACTIONS: frozenset[str] = frozenset({
+    "dns_lookup", "reverse_dns", "whois", "ssl_info", "ping", "traceroute",
+})
 
 
 class ToolExecutor:
@@ -90,6 +119,20 @@ class ToolExecutor:
             "shodan_recon": handle_shodan_recon,
         }
 
+    def is_safe_call(self, tool_name: str, arguments: dict[str, Any]) -> bool:
+        """Check if a tool call is safe (no approval needed)."""
+        if tool_name in _SAFE_TOOLS:
+            return True
+        # network_recon: passive actions are safe, port_scan/subnet_scan need approval
+        if tool_name == "network_recon":
+            action = arguments.get("action", "")
+            return action in _SAFE_NETWORK_ACTIONS
+        # http_request: GET/HEAD/OPTIONS are safe, POST/PUT/DELETE need approval
+        if tool_name == "http_request":
+            method = arguments.get("method", "GET").upper()
+            return method in ("GET", "HEAD", "OPTIONS")
+        return False
+
     def execute(self, tool_name: str, arguments: dict[str, Any]) -> dict[str, str]:
         logger.info("Executing tool: %s args=%s", tool_name, arguments)
         handler = self._dispatch.get(tool_name)
@@ -99,6 +142,9 @@ class ToolExecutor:
             return result("error", message=msg)
         try:
             return handler(self, **arguments)
+        except KeyboardInterrupt:
+            logger.warning("Tool %s interrupted by user", tool_name)
+            return result("error", message=f"{tool_name} interrupted by user (Ctrl+C)")
         except TypeError as exc:
             msg = f"Invalid arguments for {tool_name}: {exc}"
             logger.error(msg)

@@ -233,4 +233,8 @@ def main_loop(
         if ai is None:
             display_error(t("offline.hint"))
         else:
-            query_ai(ai, state, executor, tool_schemas, cost_tracker)
+            try:
+                query_ai(ai, state, executor, tool_schemas, cost_tracker)
+            except KeyboardInterrupt:
+                console.print("\n[dim]  ⚡ Interrupted — back to prompt.[/]")
+                logger.info("User interrupted AI query with Ctrl+C")

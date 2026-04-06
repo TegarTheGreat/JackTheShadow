@@ -332,8 +332,10 @@ def handle_network_recon(
     risk_level: str = "Medium",
 ) -> dict[str, str]:
     detail = f"{action} → {target}"
-    if not executor.request_approval("network_recon", detail, risk_level):
-        return result("error", message=t("tool.denied"))
+    # Only ask approval for active scanning (port_scan, subnet_scan)
+    if not executor.is_safe_call("network_recon", {"action": action}):
+        if not executor.request_approval("network_recon", detail, risk_level):
+            return result("error", message=t("tool.denied"))
 
     logger.info("network_recon: action=%s target=%s", action, target)
 

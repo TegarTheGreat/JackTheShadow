@@ -9,8 +9,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 import requests as http_lib
+import urllib3
 
 from jack_the_shadow.config import MAX_OUTPUT_CHARS
+
+# Suppress noisy SSL verification warnings for pentesting
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 from jack_the_shadow.i18n import t
 from jack_the_shadow.tools.base import BaseTool
 from jack_the_shadow.tools.helpers import result, truncate
@@ -77,8 +81,10 @@ def handle_http_request(
     risk_level: str = "Medium",
 ) -> dict[str, str]:
     detail = f"{method} {url}"
-    if not executor.request_approval("http_request", detail, risk_level):
-        return result("error", message=t("tool.denied"))
+    # GET/HEAD/OPTIONS are safe — only ask for mutating methods
+    if not executor.is_safe_call("http_request", {"method": method}):
+        if not executor.request_approval("http_request", detail, risk_level):
+            return result("error", message=t("tool.denied"))
 
     try:
         resp = http_lib.request(

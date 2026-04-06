@@ -9,7 +9,18 @@ If no credentials are found, forces an interactive login first.
 from __future__ import annotations
 
 import argparse
+import io
 import sys
+
+# ── Ensure UTF-8 stdout/stderr regardless of locale ──────────────────
+if hasattr(sys.stdout, "buffer"):
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True,
+    )
+if hasattr(sys.stderr, "buffer"):
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True,
+    )
 
 from jack_the_shadow.config import DEFAULT_LANGUAGE, DEFAULT_MODEL
 from jack_the_shadow.core.engine import CloudflareAI

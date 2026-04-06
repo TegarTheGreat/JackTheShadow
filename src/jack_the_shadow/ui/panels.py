@@ -2,6 +2,7 @@
 Jack The Shadow — Risk & YOLO Panels + Approval Prompt
 
 Colour-coded risk panels and the HITL approval flow.
+Uses interactive selector instead of manual text input.
 """
 
 from __future__ import annotations
@@ -66,13 +67,41 @@ def display_yolo_auto_approve(action: str) -> None:
 
 
 def prompt_approval(action: str, detail: str, risk_level: str) -> bool:
-    """Show risk panel and ask for user approval."""
+    """Show risk panel and ask for user approval via interactive selector.
+
+    Options:
+      - Yes          → approve this single call
+      - Yes for all  → auto-approve this tool pattern (adds permission rule)
+      - No           → deny
+    """
+    from jack_the_shadow.ui.selector import interactive_select
+
     display_risk_panel(action, detail, risk_level)
+
+    options = [
+        "✓  Ya / Yes",
+        "✓✓ Ya untuk semua (auto-approve tool ini) / Yes for all",
+        "✗  Tidak / No",
+    ]
+
     try:
-        answer = console.input(f"[bold white]{t('hitl.prompt')}[/]").strip().lower()
+        idx = interactive_select(options, title=t("hitl.prompt_title"))
     except (EOFError, KeyboardInterrupt):
         console.print(f"\n[dim]{t('hitl.cancelled')}[/]")
         return False
-    approved = answer in ("", "y", "yes")
-    logger.info("Approval: %s [%s] → %s", action, risk_level, "OK" if approved else "DENIED")
-    return approved
+
+    if idx == 0:
+        logger.info("Approval: %s [%s] → OK (single)", action, risk_level)
+        return True
+
+    if idx == 1:
+        # Add a wildcard allow rule for this tool
+        from jack_the_shadow.core.permissions import add_permission_rule
+        add_permission_rule(action, "*")
+        console.print(f"[info]  ✓ Auto-approve rule added: {action}(*)[/]")
+        logger.info("Approval: %s [%s] → OK (rule: *)", action, risk_level)
+        return True
+
+    # idx == 2 or None (ESC)
+    logger.info("Approval: %s [%s] → DENIED", action, risk_level)
+    return False

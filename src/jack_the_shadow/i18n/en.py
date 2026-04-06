@@ -58,6 +58,7 @@ STRINGS: dict[str, str] = {
     "hitl.risk": "RISK",
     "hitl.wants_to_run": "Jack wants to execute",
     "hitl.prompt": "  Allow Jack to execute? [Y/n]: ",
+    "hitl.prompt_title": "Allow execution?",
     "hitl.cancelled": "  Cancelled by operator.",
 
     # ── Slash commands

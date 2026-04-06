@@ -58,6 +58,7 @@ STRINGS: dict[str, str] = {
     "hitl.risk": "RISIKO",
     "hitl.wants_to_run": "Jack mau jalanin",
     "hitl.prompt": "  Izinin Jack jalanin ini? [Y/n]: ",
+    "hitl.prompt_title": "Izinin eksekusi?",
     "hitl.cancelled": "  Dibatalin sama operator.",
 
     # ── Slash commands
