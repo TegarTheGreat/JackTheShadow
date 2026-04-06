@@ -1,16 +1,18 @@
 """
 Jack The Shadow — Interactive Terminal Selector
 
-Arrow-key navigated menus using raw terminal mode.
-No external dependencies — uses stdlib ``tty`` and ``termios``.
+Arrow-key navigated menus using prompt_toolkit Application.
+Fully compatible with the main prompt_toolkit PromptSession.
 """
 
 from __future__ import annotations
 
-import sys
-import tty
-import termios
 from typing import Optional
+
+from prompt_toolkit import Application
+from prompt_toolkit.formatted_text import FormattedText
+from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.layout import Layout, Window, FormattedTextControl
 
 from jack_the_shadow.ui.console import console
 
@@ -22,7 +24,9 @@ def interactive_select(
     selected: int = 0,
     descriptions: Optional[list[str]] = None,
 ) -> Optional[int]:
-    """Show an interactive selector.  Navigate with ↑↓, Enter to select, ESC to cancel.
+    """Show an interactive selector.
+
+    Navigate with ↑↓ (or j/k), Enter to select, ESC to cancel.
 
     Args:
         options: Display labels for each option.
@@ -36,82 +40,75 @@ def interactive_select(
     if not options:
         return None
 
-    fd = sys.stdin.fileno()
-    old_settings = termios.tcgetattr(fd)
-    cursor = min(selected, len(options) - 1)
+    state = {"cursor": min(selected, len(options) - 1), "result": None}
 
-    hint = "[dim]  ↑↓ navigate  ⏎ select  ESC cancel[/]"
-    console.print()
-    if title:
-        console.print(f"  [info]{title}[/]")
-    console.print(hint)
+    # ── Key bindings ──────────────────────────────────────────────────
+    kb = KeyBindings()
 
-    # Print initial blank lines that we'll overwrite
-    for _ in options:
-        sys.stdout.write("\n")
-    sys.stdout.flush()
+    @kb.add("up")
+    @kb.add("k")
+    def _move_up(event: object) -> None:
+        state["cursor"] = (state["cursor"] - 1) % len(options)
 
-    lines_to_clear = len(options)
+    @kb.add("down")
+    @kb.add("j")
+    def _move_down(event: object) -> None:
+        state["cursor"] = (state["cursor"] + 1) % len(options)
 
-    def render() -> None:
-        # Move up to start of options
-        sys.stdout.write(f"\033[{lines_to_clear}A")
+    @kb.add("home")
+    def _go_top(event: object) -> None:
+        state["cursor"] = 0
+
+    @kb.add("end")
+    def _go_bottom(event: object) -> None:
+        state["cursor"] = len(options) - 1
+
+    @kb.add("enter")
+    def _select(event: object) -> None:
+        state["result"] = state["cursor"]
+        event.app.exit()  # type: ignore[union-attr]
+
+    @kb.add("escape")
+    @kb.add("c-c")
+    def _cancel(event: object) -> None:
+        state["result"] = None
+        event.app.exit()  # type: ignore[union-attr]
+
+    # ── Render function ───────────────────────────────────────────────
+    def _build_fragments() -> FormattedText:
+        frags: list[tuple[str, str]] = []
+
+        if title:
+            frags.append(("bold", f"  {title}\n"))
+        frags.append(("fg:ansigray", "  ↑↓ navigate  ⏎ select  ESC cancel\n\n"))
+
         for i, opt in enumerate(options):
-            sys.stdout.write("\033[2K")  # clear line
-            if i == cursor:
-                label = f"\033[1;36m  ❯ {opt}\033[0m"
+            if i == state["cursor"]:
+                frags.append(("bold fg:ansibrightcyan", f"  ❯ {opt}"))
             else:
-                label = f"    {opt}"
+                frags.append(("", f"    {opt}"))
+
             if descriptions and i < len(descriptions):
-                desc = descriptions[i]
-                label += f"  \033[2m{desc}\033[0m"
-            sys.stdout.write(label + "\n")
-        sys.stdout.flush()
+                frags.append(("fg:ansigray", f"  {descriptions[i]}"))
+
+            frags.append(("", "\n"))
+
+        return FormattedText(frags)
+
+    # ── prompt_toolkit Application ────────────────────────────────────
+    control = FormattedTextControl(_build_fragments)
+    layout = Layout(Window(content=control, always_hide_cursor=True))
+
+    app: Application[None] = Application(
+        layout=layout,
+        key_bindings=kb,
+        full_screen=False,
+        mouse_support=False,
+    )
 
     try:
-        tty.setcbreak(fd)
-        render()
+        app.run()
+    except (EOFError, KeyboardInterrupt):
+        return None
 
-        while True:
-            ch = sys.stdin.read(1)
-
-            if ch == "\x1b":  # ESC sequence
-                # Read with a tiny buffer — if another char follows, it's an arrow
-                import select as _sel
-
-                if _sel.select([sys.stdin], [], [], 0.05)[0]:
-                    ch2 = sys.stdin.read(1)
-                    if ch2 == "[":
-                        ch3 = sys.stdin.read(1)
-                        if ch3 == "A":  # Up
-                            cursor = (cursor - 1) % len(options)
-                        elif ch3 == "B":  # Down
-                            cursor = (cursor + 1) % len(options)
-                        # Ignore other sequences
-                    # else: unknown sequence, ignore
-                else:
-                    # Plain ESC — cancel
-                    _cleanup(lines_to_clear)
-                    return None
-            elif ch in ("\r", "\n"):  # Enter
-                _cleanup(lines_to_clear)
-                return cursor
-            elif ch == "\x03":  # Ctrl+C
-                _cleanup(lines_to_clear)
-                return None
-            elif ch == "q":
-                _cleanup(lines_to_clear)
-                return None
-
-            render()
-    finally:
-        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-
-
-def _cleanup(lines: int) -> None:
-    """Erase the selector area from the terminal."""
-    sys.stdout.write(f"\033[{lines}A")
-    for _ in range(lines):
-        sys.stdout.write("\033[2K\n")
-    sys.stdout.write(f"\033[{lines}A")
-    sys.stdout.flush()
+    return state["result"]
