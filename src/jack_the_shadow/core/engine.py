@@ -27,7 +27,7 @@ from jack_the_shadow.utils.logger import get_logger
 
 logger = get_logger("core.engine")
 
-_RETRYABLE_STATUSES = {500, 502, 503, 504, 429}
+_RETRYABLE_STATUSES = {500, 502, 503, 504}
 
 
 class CloudflareAIError(Exception):
@@ -49,6 +49,7 @@ class CloudflareAI:
         account_id: str,
         api_token: str,
         model: str = "",
+        on_retry: Optional[Callable[[str], None]] = None,
     ) -> None:
         if not account_id or not api_token:
             raise CloudflareAIError(
@@ -59,6 +60,7 @@ class CloudflareAI:
         self.account_id = account_id
         self.api_token = api_token
         self.model = model
+        self._on_retry = on_retry
         self._session = requests.Session()
         self._session.headers.update({
             "Authorization": f"Bearer {self.api_token}",
@@ -234,15 +236,20 @@ class CloudflareAI:
         return clean
 
     def _make_request(self, payload: dict[str, Any]) -> dict[str, Any]:
-        """POST to Cloudflare with retry on transient failures."""
+        """POST to Cloudflare with retry on transient failures.
+
+        For HTTP 429 (rate limit), respects Retry-After header and uses
+        extended retries (up to 5 attempts with longer waits).
+        """
         endpoint = self._build_endpoint()
         last_error: Optional[Exception] = None
+        rate_limit_retries = 0
+        max_rate_limit_retries = 5
 
-        for attempt in range(1, MAX_RETRIES + 1):
+        for attempt in range(1, MAX_RETRIES + max_rate_limit_retries + 1):
             try:
                 logger.debug(
-                    "API request attempt %d/%d → %s",
-                    attempt, MAX_RETRIES, endpoint,
+                    "API request attempt %d → %s", attempt, endpoint,
                 )
                 resp = self._session.post(endpoint, json=payload, timeout=120)
 
@@ -253,7 +260,41 @@ class CloudflareAI:
                         status_code=resp.status_code,
                     )
 
+                if resp.status_code == 429:
+                    rate_limit_retries += 1
+                    if rate_limit_retries > max_rate_limit_retries:
+                        raise CloudflareAIError(
+                            t("api.rate_limited"),
+                            status_code=429,
+                        )
+                    # Respect Retry-After header, fallback to exponential backoff
+                    retry_after = resp.headers.get("Retry-After")
+                    if retry_after and retry_after.isdigit():
+                        wait = min(int(retry_after), 60)
+                    else:
+                        wait = min(RETRY_BACKOFF_BASE ** (rate_limit_retries + 1), 30)
+                    logger.warning(
+                        "Rate limited (429) — waiting %.0fs (rate retry %d/%d)",
+                        wait, rate_limit_retries, max_rate_limit_retries,
+                    )
+                    # Notify user via callback if available
+                    if self._on_retry:
+                        self._on_retry(
+                            f"⏳ Rate limited — waiting {int(wait)}s "
+                            f"(retry {rate_limit_retries}/{max_rate_limit_retries})"
+                        )
+                    last_error = CloudflareAIError(
+                        "Rate limited (429)", status_code=429,
+                    )
+                    time.sleep(wait)
+                    continue
+
                 if resp.status_code in _RETRYABLE_STATUSES:
+                    if attempt > MAX_RETRIES:
+                        raise CloudflareAIError(
+                            f"HTTP {resp.status_code} after {attempt} attempts",
+                            status_code=resp.status_code,
+                        )
                     wait = RETRY_BACKOFF_BASE ** attempt
                     logger.warning(
                         "HTTP %d — retrying in %.1fs (attempt %d/%d)",
@@ -266,7 +307,6 @@ class CloudflareAI:
                     continue
 
                 if resp.status_code == 400:
-                    # Log the full error for debugging, then raise
                     body = resp.text[:1000]
                     logger.error("API 400 Bad Request: %s", body)
                     raise CloudflareAIError(
@@ -280,6 +320,8 @@ class CloudflareAI:
                 return data
 
             except requests.exceptions.Timeout:
+                if attempt > MAX_RETRIES:
+                    raise CloudflareAIError("Request timed out after all retries")
                 wait = RETRY_BACKOFF_BASE ** attempt
                 logger.warning(
                     "Request timeout — retrying in %.1fs (attempt %d/%d)",
@@ -289,6 +331,8 @@ class CloudflareAI:
                 time.sleep(wait)
 
             except requests.exceptions.ConnectionError as exc:
+                if attempt > MAX_RETRIES:
+                    raise CloudflareAIError(f"Connection error: {exc}")
                 wait = RETRY_BACKOFF_BASE ** attempt
                 logger.warning(
                     "Connection error — retrying in %.1fs (attempt %d/%d): %s",
@@ -304,7 +348,7 @@ class CloudflareAI:
                 raise CloudflareAIError(f"HTTP error: {exc}") from exc
 
         raise CloudflareAIError(
-            f"All {MAX_RETRIES} retry attempts exhausted. Last error: {last_error}"
+            f"All retry attempts exhausted. Last error: {last_error}"
         )
 
     def _parse_response(self, raw: dict[str, Any]) -> dict[str, Any]:

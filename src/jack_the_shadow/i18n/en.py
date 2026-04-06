@@ -41,6 +41,7 @@ STRINGS: dict[str, str] = {
 
     # ── AI responses
     "ai.empty_response": "(Jack didn't produce a response.)",
+    "api.rate_limited": "Rate limited by Cloudflare (429). Try again in a moment or switch models with /model.",
 
     # ── YOLO mode
     "yolo.on_title": "☠  DANGER ZONE",

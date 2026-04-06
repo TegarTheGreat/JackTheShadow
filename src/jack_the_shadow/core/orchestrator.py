@@ -9,6 +9,9 @@ Supports live AI reconnection via /login, SSE streaming, and session resume.
 from __future__ import annotations
 
 import json
+import select
+import sys
+import threading
 from typing import Any, Callable, NoReturn, Optional
 
 from jack_the_shadow.config import STREAM_RESPONSES
@@ -245,6 +248,29 @@ def query_ai(
     logger.warning("Tool-call loop hit max rounds (%d)", max_tool_rounds)
 
 
+def _drain_stdin_queue() -> list[str]:
+    """Drain any input the user typed while AI was executing.
+
+    Uses non-blocking select on stdin (Linux). Returns lines typed,
+    or empty list if nothing was queued.
+    """
+    queued: list[str] = []
+    try:
+        while True:
+            ready, _, _ = select.select([sys.stdin], [], [], 0)
+            if not ready:
+                break
+            line = sys.stdin.readline()
+            if not line:
+                break
+            stripped = line.strip()
+            if stripped:
+                queued.append(stripped)
+    except (OSError, ValueError):
+        pass
+    return queued
+
+
 def _auto_save_session(state: AppState) -> None:
     """Finalize the active SessionWriter or do a one-shot save as fallback."""
     try:
@@ -347,10 +373,10 @@ def _resume_session(session_id: str, state: AppState) -> bool:
 
 def _maybe_enrich_target_input(user_input: str, state: AppState) -> str:
     """If user input looks like a bare target, auto-set it and enrich
-    the message with an explicit recon instruction.
+    the message with a phase-appropriate instruction.
 
-    This helps weaker models understand they should immediately launch
-    a full recon sweep instead of asking what to do.
+    The instruction varies by current phase so the AI doesn't always
+    fall back to recon when the user has already advanced.
     """
     import re
 
@@ -383,14 +409,49 @@ def _maybe_enrich_target_input(user_input: str, state: AppState) -> str:
         console.print(f"[dim]  🎯 Target auto-set: {target}[/]")
         logger.info("Auto-set target: %s", target)
 
-    # Enrich the message so the AI knows to execute immediately
-    return (
-        f"Target: {target}\n"
-        f"Execute full recon immediately using batch_execute — "
-        f"DNS lookup, WHOIS, SSL info, port scan (21,22,80,443,3306,5432,8080,8443), "
-        f"web_fetch homepage, and web_search for known vulns. "
-        f"Do NOT list steps or ask — just call the tools NOW."
-    )
+    # Phase-aware instructions
+    phase = state.phase
+    phase_instructions = {
+        "recon": (
+            f"Execute full recon immediately using batch_execute — "
+            f"DNS lookup, WHOIS, SSL info, port scan (21,22,80,443,3306,5432,8080,8443), "
+            f"web_fetch homepage, and web_search for known vulns. "
+            f"Do NOT list steps or ask — just call the tools NOW."
+        ),
+        "enum": (
+            f"Target is already reconned. Move to ENUMERATION — "
+            f"directory bruteforce, parameter discovery, tech fingerprinting, "
+            f"service enumeration. Check memory_read for prior findings first. "
+            f"Execute tools NOW, don't ask."
+        ),
+        "vuln": (
+            f"Target is scoped. Focus on VULNERABILITY ANALYSIS — "
+            f"search CVEs for detected tech stack, run vuln scans, "
+            f"check exploit_search for known exploits. Read memory first. "
+            f"Execute tools NOW."
+        ),
+        "exploit": (
+            f"Target is scoped and vulnerabilities identified. EXPLOIT NOW — "
+            f"Read memory_read for prior findings, then execute exploits: "
+            f"try RCE, SQLi, file upload, auth bypass, webshell deployment. "
+            f"Use payload_generate, http_request, python_repl, bash_execute. "
+            f"Prioritize getting a shell. Do NOT do recon again. Execute NOW."
+        ),
+        "post_exploit": (
+            f"You have access to the target. POST-EXPLOITATION — "
+            f"privesc, lateral movement, data exfiltration, persistence. "
+            f"Read memory for current access level. Deploy gsocket for backdoor. "
+            f"Execute NOW."
+        ),
+        "report": (
+            f"Generate a full penetration test report for this target. "
+            f"Read memory_read and todo_read for all findings, then use "
+            f"report_generate. Execute NOW."
+        ),
+    }
+
+    instruction = phase_instructions.get(phase, phase_instructions["recon"])
+    return f"Target: {target}\n{instruction}"
 
 
 def main_loop(
@@ -465,3 +526,19 @@ def main_loop(
             except KeyboardInterrupt:
                 console.print("\n[dim]  ⚡ Interrupted — back to prompt.[/]")
                 logger.info("User interrupted AI query with Ctrl+C")
+
+            # Check if user typed anything during execution (stdin buffer)
+            queued = _drain_stdin_queue()
+            for q in queued:
+                if q.startswith("/"):
+                    handle_local_command(q, state, tool_names, executor, cost_tracker)
+                    continue
+                display_user_message(q)
+                enriched_q = _maybe_enrich_target_input(q, state)
+                state.add_message("user", enriched_q)
+                if ai is not None:
+                    console.print("[dim]  📨 Processing queued message...[/]")
+                    try:
+                        query_ai(ai, state, executor, tool_schemas, cost_tracker)
+                    except KeyboardInterrupt:
+                        console.print("\n[dim]  ⚡ Interrupted — back to prompt.[/]")

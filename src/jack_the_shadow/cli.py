@@ -89,12 +89,14 @@ def _run_login_gate() -> bool:
 
 def _create_ai_client(model: str) -> CloudflareAI | None:
     """Try to create AI client from stored/env credentials."""
+    from jack_the_shadow.ui.messages import display_info
     account_id, api_token = load_credentials()
     if account_id and api_token:
         return CloudflareAI(
             account_id=account_id,
             api_token=api_token,
             model=model,
+            on_retry=lambda msg: display_info(msg),
         )
     return None
 
