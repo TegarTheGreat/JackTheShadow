@@ -74,6 +74,7 @@ def query_ai(
     state: AppState,
     executor: ToolExecutor,
     tool_schemas: list[dict[str, Any]],
+    cost_tracker: Any = None,
 ) -> None:
     """Run the AI query with multi-round tool calling (max 15 rounds)."""
     max_tool_rounds = 15
@@ -88,7 +89,7 @@ def query_ai(
         )
         with status_spinner(spinner_msg):
             try:
-                assistant_msg = ai.chat(messages, tools=tool_schemas)
+                assistant_msg = ai.chat(messages, tools=tool_schemas, cost_tracker=cost_tracker)
             except CloudflareAIError as exc:
                 display_error(str(exc))
                 logger.error("AI query failed: %s", exc)
@@ -150,12 +151,14 @@ def main_loop(
     tool_schemas: list[dict[str, Any]],
     tool_names: list[str],
     ai_factory: AIFactory | None = None,
+    cost_tracker: Any = None,
 ) -> NoReturn:
     """The main interactive prompt loop.
 
     Args:
         ai_factory: Optional callable(model) -> CloudflareAI for reconnecting
                     after /login without restarting.
+        cost_tracker: Optional CostTracker instance for API usage tracking.
     """
     while True:
         try:
@@ -169,7 +172,7 @@ def main_loop(
 
         if user_input.startswith("/"):
             was_login = user_input.strip().lower().startswith("/login")
-            cmd_result = handle_local_command(user_input, state, tool_names, executor)
+            cmd_result = handle_local_command(user_input, state, tool_names, executor, cost_tracker)
 
             # Handle /history resume
             if isinstance(cmd_result, tuple) and cmd_result[0] == "resume":
@@ -190,4 +193,4 @@ def main_loop(
         if ai is None:
             display_error(t("offline.hint"))
         else:
-            query_ai(ai, state, executor, tool_schemas)
+            query_ai(ai, state, executor, tool_schemas, cost_tracker)

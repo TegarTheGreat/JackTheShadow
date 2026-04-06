@@ -22,22 +22,27 @@ logger = get_logger("ui.commands")
 
 # Registry: (command, description_key)
 SLASH_COMMANDS: list[tuple[str, str]] = [
-    ("/yolo",    "cmd.yolo.desc"),
-    ("/clear",   "cmd.clear.desc"),
-    ("/compact", "cmd.compact.desc"),
-    ("/context", "cmd.context.desc"),
-    ("/tools",   "cmd.tools.desc"),
-    ("/model",   "cmd.model.desc"),
-    ("/models",  "cmd.models.desc"),
-    ("/lang",    "cmd.lang.desc"),
-    ("/target",  "cmd.target.desc"),
-    ("/login",   "cmd.login.desc"),
-    ("/logout",  "cmd.logout.desc"),
-    ("/mcp",     "cmd.mcp.desc"),
-    ("/history", "cmd.history.desc"),
-    ("/export",  "cmd.export.desc"),
-    ("/help",    "cmd.help.desc"),
-    ("/exit",    "cmd.exit.desc"),
+    ("/yolo",        "cmd.yolo.desc"),
+    ("/clear",       "cmd.clear.desc"),
+    ("/compact",     "cmd.compact.desc"),
+    ("/context",     "cmd.context.desc"),
+    ("/tools",       "cmd.tools.desc"),
+    ("/model",       "cmd.model.desc"),
+    ("/models",      "cmd.models.desc"),
+    ("/lang",        "cmd.lang.desc"),
+    ("/target",      "cmd.target.desc"),
+    ("/login",       "cmd.login.desc"),
+    ("/logout",      "cmd.logout.desc"),
+    ("/mcp",         "cmd.mcp.desc"),
+    ("/history",     "cmd.history.desc"),
+    ("/export",      "cmd.export.desc"),
+    ("/doctor",      "cmd.doctor.desc"),
+    ("/cost",        "cmd.cost.desc"),
+    ("/memory",      "cmd.memory.desc"),
+    ("/plan",        "cmd.plan.desc"),
+    ("/permissions", "cmd.permissions.desc"),
+    ("/help",        "cmd.help.desc"),
+    ("/exit",        "cmd.exit.desc"),
 ]
 
 
@@ -275,11 +280,151 @@ def _handle_export_command(state: Any) -> None:
         display_error("Failed to export session.")
 
 
+def _handle_doctor_command(executor: Optional[Any]) -> None:
+    """Run doctor diagnostics to check pentest tool availability."""
+    if executor is None:
+        display_error("Executor not available.")
+        return
+    from jack_the_shadow.tools.builtin.doctor import handle_doctor_check
+    res = handle_doctor_check(executor, category="all")
+    if res["status"] == "success":
+        console.print(f"\n{res['output']}")
+    else:
+        display_error(res.get("message", "Doctor check failed."))
+
+
+def _handle_cost_command(cost_tracker: Any) -> None:
+    """Display API usage statistics."""
+    if cost_tracker is None:
+        console.print("[dim]  Cost tracking not available.[/]")
+        return
+    summary = cost_tracker.format_summary()
+    console.print(Panel(summary, title="[info]API Usage[/]", border_style="blue"))
+
+
+def _handle_memory_command(arg: str) -> None:
+    """View or manage persistent memory."""
+    from jack_the_shadow.session.paths import JSHADOW_DIR
+
+    memory_file = JSHADOW_DIR / "memory" / "notes.md"
+    if arg.lower() == "clear":
+        if memory_file.exists():
+            memory_file.write_text("")
+            display_info("Memory cleared.")
+        else:
+            console.print("[dim]  No memory to clear.[/]")
+        return
+
+    if not memory_file.exists() or not memory_file.read_text().strip():
+        console.print("[dim]  No memory notes saved yet. Jack will save findings as you work.[/]")
+        return
+
+    content = memory_file.read_text()
+    if arg:
+        lines = [l for l in content.splitlines() if arg.lower() in l.lower()]
+        if lines:
+            console.print("\n".join(lines))
+        else:
+            console.print(f"[dim]  No memory entries matching '{arg}'.[/]")
+    else:
+        console.print(Panel(content[:3000], title="[info]Persistent Memory[/]", border_style="blue"))
+
+
+def _handle_plan_command() -> None:
+    """View current attack plan / todo list."""
+    from jack_the_shadow.session.paths import JSHADOW_DIR
+    import json as _json
+
+    todo_file = JSHADOW_DIR / "memory" / "todos.json"
+    if not todo_file.exists():
+        console.print("[dim]  No attack plan yet. Jack will create tasks as you work.[/]")
+        return
+
+    try:
+        todos = _json.loads(todo_file.read_text())
+    except (ValueError, OSError):
+        console.print("[dim]  No attack plan yet.[/]")
+        return
+
+    if not todos:
+        console.print("[dim]  Task list is empty.[/]")
+        return
+
+    table = Table(title="[info]Attack Plan[/]", border_style="blue")
+    table.add_column("ID", style="bold", width=4)
+    table.add_column("Phase", style="magenta", width=18)
+    table.add_column("Task", style="white")
+    table.add_column("Status", width=14)
+
+    icons = {"pending": "⏳", "in_progress": "🔄", "done": "✅"}
+    for todo in todos:
+        icon = icons.get(todo.get("status", "pending"), "⏳")
+        table.add_row(
+            str(todo.get("id", "?")),
+            todo.get("phase", "-"),
+            todo.get("task", "-"),
+            f"{icon} {todo.get('status', 'pending')}",
+        )
+    console.print(table)
+
+
+def _handle_permissions_command(arg: str) -> None:
+    """Manage permission auto-approve rules."""
+    from jack_the_shadow.core.permissions import (
+        add_permission_rule,
+        clear_permission_rules,
+        list_permission_rules,
+        remove_permission_rule,
+    )
+
+    parts = arg.split(maxsplit=2) if arg else []
+    sub = parts[0].lower() if parts else "list"
+
+    if sub == "list" or not arg:
+        rules = list_permission_rules()
+        if not rules:
+            console.print("[dim]  No permission rules set. All risky tools require approval.[/]")
+            console.print("[dim]  Usage: /permissions add bash_execute \"nmap *\"[/]")
+            return
+        table = Table(title="[info]Permission Rules[/]", border_style="blue")
+        table.add_column("Tool", style="cyan")
+        table.add_column("Pattern", style="white")
+        for tool, patterns in rules.items():
+            for p in patterns:
+                table.add_row(tool, p)
+        console.print(table)
+        return
+
+    if sub == "add" and len(parts) >= 3:
+        tool_name = parts[1]
+        pattern = parts[2].strip("\"'")
+        add_permission_rule(tool_name, pattern)
+        display_info(f"Rule added: {tool_name}({pattern})")
+        return
+
+    if sub in ("remove", "rm") and len(parts) >= 3:
+        tool_name = parts[1]
+        pattern = parts[2].strip("\"'")
+        if remove_permission_rule(tool_name, pattern):
+            display_info(f"Rule removed: {tool_name}({pattern})")
+        else:
+            display_error("Rule not found.")
+        return
+
+    if sub == "clear":
+        clear_permission_rules()
+        display_info("All permission rules cleared.")
+        return
+
+    console.print("[dim]  Usage: /permissions add|remove|clear|list <tool> <pattern>[/]")
+
+
 def handle_local_command(
     command: str,
     state: Any,
     tool_names: Optional[list[str]] = None,
     executor: Optional[Any] = None,
+    cost_tracker: Optional[Any] = None,
 ) -> Any:
     """Process a slash command.  Returns True if handled, or session_id for /history resume."""
     from jack_the_shadow.ui.panels import display_yolo_toggle
@@ -291,7 +436,7 @@ def handle_local_command(
     if cmd == "/":
         selected = _display_command_menu()
         if selected:
-            return handle_local_command(selected, state, tool_names, executor)
+            return handle_local_command(selected, state, tool_names, executor, cost_tracker)
         return True
 
     if cmd in ("/exit", "/quit", "/q"):
@@ -414,6 +559,26 @@ def handle_local_command(
 
     if cmd == "/help":
         _display_command_menu()
+        return True
+
+    if cmd == "/doctor":
+        _handle_doctor_command(executor)
+        return True
+
+    if cmd == "/cost":
+        _handle_cost_command(cost_tracker)
+        return True
+
+    if cmd == "/memory":
+        _handle_memory_command(arg)
+        return True
+
+    if cmd == "/plan":
+        _handle_plan_command()
+        return True
+
+    if cmd == "/permissions":
+        _handle_permissions_command(arg)
         return True
 
     console.print(f"[dim]  Unknown command: {cmd}. Type / for menu.[/]")

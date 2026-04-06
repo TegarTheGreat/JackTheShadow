@@ -110,6 +110,10 @@ def main() -> None:
 
     ai = _create_ai_client(state.model)
 
+    # Initialize cost tracker
+    from jack_the_shadow.core.cost_tracker import CostTracker
+    cost_tracker = CostTracker()
+
     if ai is None:
         console.print(t("banner.no_creds"))
         console.print()
@@ -125,7 +129,7 @@ def main() -> None:
     )
 
     try:
-        main_loop(state, ai, executor, tool_schemas, tool_names, _create_ai_client)
+        main_loop(state, ai, executor, tool_schemas, tool_names, _create_ai_client, cost_tracker)
     except SystemExit:
         # Save user preferences for next launch
         update_user_config(model=state.model, language=state.language)

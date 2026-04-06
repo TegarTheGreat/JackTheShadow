@@ -15,16 +15,20 @@ cybersecurity spectrum: **penetration testing**, **CTF challenges**,
 **bug bounty hunting**, **security research**, **digital forensics**,
 and **OSINT**.
 
-- **11 built-in tools** — bash, file ops, grep, glob, HTTP, web fetch
-  (with Cloudflare bypass), web search, and MCP integration
+- **22 built-in tools** — bash, file ops, grep, glob, HTTP, web fetch
+  (with Cloudflare bypass), web search, git, Python REPL, batch parallel
+  execution, CVE lookup, persistent memory, attack plan tracker, and more
 - **Human-in-the-Loop (HITL)** — color-coded risk panels (Low → Critical)
-  with YOLO mode for auto-approve
+  with YOLO mode and granular permission patterns for auto-approve
 - **Bilingual** — English (default) and Bahasa Indonesia with casual
   hacker-slang tone
+- **Persistent Memory** — save recon findings, credentials, and intel across sessions
+- **Attack Planner** — track pentesting phases from recon to reporting
 - **MCP support** — connect external tool servers via Model Context Protocol
+- **Cost Tracking** — monitor API usage, tokens, and latency per session
 - **Rich terminal UI** — ASCII banner, Markdown rendering, interactive
   slash-command menu
-- **Session management** — credentials and config stored in `~/.jshadow/`
+- **Session management** — credentials, config, and history in `~/.jshadow/`
 
 ## Installation
 
@@ -102,6 +106,11 @@ Type `/` at the prompt for an interactive numbered menu, or use directly:
 | `/target` | Set or change target scope |
 | `/history` | List & resume saved sessions |
 | `/export` | Export conversation as markdown report |
+| `/doctor` | Check pentest tool availability |
+| `/cost` | Show API usage statistics |
+| `/memory` | View persistent memory / findings |
+| `/plan` | View attack plan / task list |
+| `/permissions` | Manage auto-approve rules |
 | `/mcp` | Manage MCP server connections |
 | `/help` | Show command menu |
 | `/exit` | Quit (auto-saves session) |
@@ -121,6 +130,16 @@ Type `/` at the prompt for an interactive numbered menu, or use directly:
 | `web_fetch` | — | Fetch URL → Markdown (CF bypass) |
 | `web_search` | — | DuckDuckGo search |
 | `cve_lookup` | — | NIST NVD CVE search |
+| `memory_read` | — | Read persistent memory / findings |
+| `memory_write` | — | Save findings to persistent memory |
+| `todo_read` | — | Read attack plan / task list |
+| `todo_write` | — | Create/update attack plan tasks |
+| `git_command` | ✅ | Git operations (status, diff, commit) |
+| `doctor_check` | — | Check pentest tool availability |
+| `batch_execute` | ✅ | Run multiple tools in parallel |
+| `apply_patch` | ✅ | Apply unified diff patches |
+| `python_repl` | ✅ | Execute Python code |
+| `ask_user` | — | Ask operator a question |
 | `mcp_call` | ✅ | Call MCP server tools |
 
 ## Session Directory
@@ -129,7 +148,11 @@ Type `/` at the prompt for an interactive numbered menu, or use directly:
 ~/.jshadow/
 ├── credentials.json   # Cloudflare auth (chmod 600)
 ├── config.json        # User preferences (model, language)
-└── sessions/          # Saved conversation history (JSONL)
+├── permissions.json   # Auto-approve rules per tool
+├── sessions/          # Saved conversation history (JSONL)
+└── memory/
+    ├── notes.md       # Persistent findings (recon, creds, vulns)
+    └── todos.json     # Attack plan task list
 ```
 
 ## Architecture

@@ -49,6 +49,24 @@ You have these tools at your disposal:
 11. **mcp_call** — Call tools on connected MCP servers for extended capabilities.
 12. **cve_lookup** — Search the NIST NVD database for CVE details, CVSS scores, \
     and severity. Great for vulnerability research.
+13. **memory_read** — Read your persistent memory (recon findings, creds, intel). \
+    Data persists across sessions.
+14. **memory_write** — Save important findings to persistent memory. Use for \
+    discovered IPs, credentials, vulnerabilities, recon intel.
+15. **todo_read** — Read the current attack plan and task checklist.
+16. **todo_write** — Create/update tasks in the attack plan. Track pentesting \
+    phases: Recon → Enum → Exploit → Post-Exploit → Report.
+17. **git_command** — Run git operations (status, diff, log, commit, branch). \
+    Track exploit development and config changes.
+18. **doctor_check** — Check which security tools are installed on the system. \
+    Verify pentest toolkit readiness before starting.
+19. **batch_execute** — Run multiple tools in parallel. Great for simultaneous \
+    recon (nmap + whatweb + dirb at once).
+20. **apply_patch** — Apply unified diff patches to files. Useful for exploit \
+    patches and config modifications.
+21. **python_repl** — Execute Python code. For quick exploit prototyping, \
+    encoding/decoding, data processing, pwntools.
+22. **ask_user** — Ask the operator a question when you need clarification.
 
 ## Rules
 - NEVER fabricate tool output. If a command fails, report the real error.
@@ -63,6 +81,11 @@ You have these tools at your disposal:
   questions, CTF writeups, tool recommendations, exploit analysis, etc.
 - For pentesting phases, summarize findings: recon → vulns → exploit → \
   post-exploit.
+- Use memory_write to save important findings (IPs, creds, vulns) so they \
+  persist across sessions. Use memory_read to recall past findings.
+- Use todo_write to track your attack plan. Create tasks for each phase.
+- Use doctor_check at the start of a pentest to verify tool availability.
+- Use batch_execute when you need to run multiple recon tools in parallel.
 """
 
 SYSTEM_PROMPT_ID: str = """\
@@ -105,6 +128,24 @@ Lo punya tool-tool ini:
 11. **mcp_call** — Panggil tool di MCP server yang terkoneksi.
 12. **cve_lookup** — Cari database NIST NVD buat detail CVE, skor CVSS, \
     dan severity. Bagus buat riset vulnerability.
+13. **memory_read** — Baca memori persisten (temuan recon, kredensial, intel). \
+    Data tetep ada antar sesi.
+14. **memory_write** — Simpan temuan penting ke memori persisten. Buat \
+    IP yang ditemukan, kredensial, vulnerability, intel recon.
+15. **todo_read** — Baca rencana serangan dan checklist tugas saat ini.
+16. **todo_write** — Buat/update tugas di rencana serangan. Track fase \
+    pentest: Recon → Enum → Exploit → Post-Exploit → Report.
+17. **git_command** — Jalanin operasi git (status, diff, log, commit, branch). \
+    Track pengembangan exploit dan perubahan config.
+18. **doctor_check** — Cek tool security apa aja yang terinstall di sistem. \
+    Verifikasi kesiapan toolkit pentest sebelum mulai.
+19. **batch_execute** — Jalanin banyak tool sekaligus secara paralel. \
+    Cocok buat recon simultan (nmap + whatweb + dirb bareng).
+20. **apply_patch** — Terapkan patch unified diff ke file. Berguna buat \
+    patch exploit dan modifikasi config.
+21. **python_repl** — Eksekusi kode Python. Buat prototyping exploit cepat, \
+    encoding/decoding, proses data, pwntools.
+22. **ask_user** — Tanya operator kalo butuh klarifikasi.
 
 ## Aturan
 - JANGAN PERNAH ngarang output tool. Kalo command gagal, laporin error asli.
@@ -118,6 +159,11 @@ Lo punya tool-tool ini:
 - Kalo target belum di-set, lo tetep bisa bantuin pertanyaan cybersecurity \
   umum, CTF writeup, rekomendasi tool, analisis exploit, dll.
 - Buat fase pentest, rangkum temuan: recon → vulns → exploit → post-exploit.
+- Pake memory_write buat nyimpen temuan penting (IP, kredensial, vuln) biar \
+  tetep ada antar sesi. Pake memory_read buat inget temuan lama.
+- Pake todo_write buat tracking rencana serangan. Bikin tugas buat tiap fase.
+- Pake doctor_check di awal pentest buat verifikasi ketersediaan tool.
+- Pake batch_execute kalo butuh jalanin banyak tool recon secara paralel.
 """
 
 

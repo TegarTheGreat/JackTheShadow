@@ -62,11 +62,29 @@ class CloudflareAI:
         self,
         messages: list[dict[str, Any]],
         tools: Optional[list[dict[str, Any]]] = None,
+        cost_tracker: Optional[Any] = None,
     ) -> dict[str, Any]:
         """Send a chat-completion request and return the parsed response."""
         payload = self._build_payload(messages, tools)
+        start = time.time()
         raw = self._make_request(payload)
-        return self._parse_response(raw)
+        duration_ms = (time.time() - start) * 1000
+        result = self._parse_response(raw)
+
+        if cost_tracker is not None:
+            try:
+                in_tokens = sum(len(m.get("content", "")) // 4 for m in messages)
+                out_tokens = len(result.get("content", "")) // 4
+                cost_tracker.record_call(
+                    model=self.model,
+                    input_tokens=in_tokens,
+                    output_tokens=out_tokens,
+                    duration_ms=duration_ms,
+                    success=True,
+                )
+            except Exception:
+                pass
+        return result
 
     def _build_endpoint(self) -> str:
         return API_ENDPOINT.format(

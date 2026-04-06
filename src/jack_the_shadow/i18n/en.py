@@ -74,6 +74,11 @@ STRINGS: dict[str, str] = {
     "cmd.compact.desc": "Compact context (keep last N messages)",
     "cmd.history.desc": "List & resume saved sessions",
     "cmd.export.desc": "Export conversation as markdown report",
+    "cmd.doctor.desc": "Check pentest tool availability",
+    "cmd.cost.desc": "Show API usage statistics",
+    "cmd.memory.desc": "View persistent memory / findings",
+    "cmd.plan.desc": "View attack plan / task list",
+    "cmd.permissions.desc": "Manage auto-approve rules",
 
     # ── Login / Logout
     "cmd.login.desc": "Connect Cloudflare AI credentials",
