@@ -10,10 +10,16 @@ from jack_the_shadow.config import MAX_OUTPUT_CHARS
 
 
 def truncate(text: str, limit: int = MAX_OUTPUT_CHARS) -> str:
-    """Truncate text to *limit* chars with a trailing note."""
+    """Truncate text to *limit* chars with a trailing summary."""
     if len(text) <= limit:
         return text
-    return text[:limit] + f"\n\n... [truncated — {len(text)} total chars]"
+    lost = len(text) - limit
+    pct = round(100 * lost / len(text))
+    return (
+        text[:limit]
+        + f"\n\n⚠ TRUNCATED — showing {limit:,}/{len(text):,} chars ({pct}% cut). "
+        f"Use file_write to save full output if needed."
+    )
 
 
 def result(status: str, output: str = "", message: str = "") -> dict[str, str]:

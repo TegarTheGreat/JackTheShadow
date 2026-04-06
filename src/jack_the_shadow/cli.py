@@ -151,7 +151,24 @@ def main() -> None:
         update_user_config(model=state.model, language=state.language)
         executor.mcp.shutdown()
         logger.info("Clean shutdown")
+    except KeyboardInterrupt:
+        console.print(f"\n[dim]{t('goodbye')}[/]\n")
+        # Auto-save session on interrupt
+        try:
+            from jack_the_shadow.core.orchestrator import _auto_save_session
+            _auto_save_session(state)
+        except Exception:
+            pass
+        update_user_config(model=state.model, language=state.language)
+        executor.mcp.shutdown()
+        logger.info("Shutdown via Ctrl+C")
     except Exception as exc:
+        # Auto-save session before crashing
+        try:
+            from jack_the_shadow.core.orchestrator import _auto_save_session
+            _auto_save_session(state)
+        except Exception:
+            pass
         executor.mcp.shutdown()
         logger.exception("Unhandled exception")
         display_error(f"Fatal: {exc}")

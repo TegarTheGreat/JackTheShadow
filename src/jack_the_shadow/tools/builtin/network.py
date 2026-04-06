@@ -182,11 +182,11 @@ def _port_scan(target: str, ports_str: str, timeout: int) -> str:
     closed_count = 0
 
     for port in ports:
+        sock = None
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(timeout)
             code = sock.connect_ex((target, port))
-            sock.close()
             if code == 0:
                 svc = _service_name(port)
                 open_ports.append(f"  {port:>5}/tcp  OPEN   {svc}")
@@ -194,6 +194,12 @@ def _port_scan(target: str, ports_str: str, timeout: int) -> str:
                 closed_count += 1
         except (OSError, socket.timeout):
             closed_count += 1
+        finally:
+            if sock:
+                try:
+                    sock.close()
+                except OSError:
+                    pass
 
     if open_ports:
         lines.append("\nOpen ports:")

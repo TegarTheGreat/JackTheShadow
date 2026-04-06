@@ -7,6 +7,7 @@ Execute multiple tool calls in parallel.
 from __future__ import annotations
 
 import concurrent.futures
+import threading
 from typing import TYPE_CHECKING, Any
 
 from jack_the_shadow.tools.base import BaseTool
@@ -17,6 +18,9 @@ if TYPE_CHECKING:
     from jack_the_shadow.tools.executor import ToolExecutor
 
 logger = get_logger("tools.batch")
+
+# Lock to protect yolo_mode state during batch execution
+_batch_lock = threading.Lock()
 
 
 class BatchExecuteTool(BaseTool):
@@ -82,16 +86,25 @@ def handle_batch_execute(
             return idx, result("error", message=str(e))
 
     # Temporarily enable yolo so individual tools don't re-prompt
-    old_yolo = executor.state.yolo_mode
-    executor.state.yolo_mode = True
+    with _batch_lock:
+        old_yolo = executor.state.yolo_mode
+        executor.state.yolo_mode = True
     try:
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as pool:
-            futures = [pool.submit(run_one, i, c) for i, c in enumerate(calls)]
+            futures = {
+                pool.submit(run_one, i, c): i for i, c in enumerate(calls)
+            }
             for f in concurrent.futures.as_completed(futures):
-                idx, res = f.result()
-                results[idx] = res
+                try:
+                    idx, res = f.result()
+                    results[idx] = res
+                except Exception as e:
+                    call_idx = futures[f]
+                    logger.error("batch future %d exception: %s", call_idx, e)
+                    results[call_idx] = result("error", message=str(e))
     finally:
-        executor.state.yolo_mode = old_yolo
+        with _batch_lock:
+            executor.state.yolo_mode = old_yolo
 
     # Format output
     parts = []

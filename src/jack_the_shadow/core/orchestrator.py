@@ -68,12 +68,18 @@ def process_tool_calls(
         )
 
         indicator.set(Phase.TOOL_USE, name)
-        result = executor.execute(name, args)
-        result_str = json.dumps(result, ensure_ascii=False)
 
-        icon = "✓" if result["status"] == "success" else "✖"
-        style = "green" if result["status"] == "success" else "red"
-        preview = result.get("output", result.get("message", ""))
+        try:
+            tool_result = executor.execute(name, args)
+        except Exception as exc:
+            logger.exception("Tool %s crashed", name)
+            tool_result = {"status": "error", "output": "", "message": f"{name} crashed: {exc}"}
+
+        result_str = json.dumps(tool_result, ensure_ascii=False)
+
+        icon = "✓" if tool_result["status"] == "success" else "✖"
+        style = "green" if tool_result["status"] == "success" else "red"
+        preview = tool_result.get("output", tool_result.get("message", ""))
         if len(preview) > 200:
             preview = preview[:200] + "..."
         console.print(f"[{style}]  {icon} {name}: {preview}[/]")
@@ -81,8 +87,8 @@ def process_tool_calls(
         state.add_tool_result(call_id, result_str)
 
         # Analyze results for follow-up intelligence
-        if result.get("status") == "success":
-            suggestions = analyze_results(name, args, result)
+        if tool_result.get("status") == "success":
+            suggestions = analyze_results(name, args, tool_result)
             all_suggestions.extend(suggestions)
 
     # Inject intelligence hints as system guidance
@@ -132,6 +138,14 @@ def query_ai(
     active_schemas = _filter_schemas_for_phase(tool_schemas, state.phase)
 
     for round_num in range(max_tool_rounds):
+        # Warn AI when approaching round limit
+        if round_num == max_tool_rounds - 2:
+            state.add_message(
+                "system",
+                "⚠ You have 2 tool-call rounds remaining. "
+                "Summarize findings and wrap up."
+            )
+
         messages = state.get_messages_for_api()
 
         # ── Streaming path (first round only, text responses) ─────────

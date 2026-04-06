@@ -149,6 +149,10 @@ class ToolExecutor:
             msg = f"Invalid arguments for {tool_name}: {exc}"
             logger.error(msg)
             return result("error", message=msg)
+        except Exception as exc:
+            msg = f"{tool_name} failed: {type(exc).__name__}: {exc}"
+            logger.exception("Unhandled exception in tool %s", tool_name)
+            return result("error", message=msg)
 
     def request_approval(self, action: str, detail: str, risk_level: str) -> bool:
         """HITL interceptor — 5-layer permission cascade."""

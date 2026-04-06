@@ -92,7 +92,7 @@ def handle_http_request(
             url=url,
             headers=headers or {},
             data=body.encode("utf-8") if body else None,
-            timeout=min(timeout, 60),
+            timeout=min(timeout, 120),
             allow_redirects=follow_redirects,
             verify=False,
         )
