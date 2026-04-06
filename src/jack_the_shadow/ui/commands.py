@@ -114,9 +114,10 @@ def _show_tools_list(tool_names: list[str]) -> None:
 
 def _show_context_info(state: Any) -> None:
     count = len(state.context_messages)
+    target_str = state.target if state.target else f"[dim]{t('banner.no_target')}[/]"
     console.print(Panel(
         f"[bold]{t('context.messages')}:[/] {count} / {MAX_CONTEXT_MESSAGES}\n"
-        f"[bold]{t('banner.target')}:[/] {state.target}\n"
+        f"[bold]{t('banner.target')}:[/] {target_str}\n"
         f"[bold]{t('banner.model')}:[/] {state.model}\n"
         f"[bold]{t('banner.yolo')}:[/] {'ON' if state.yolo_mode else 'OFF'}",
         title=f"[info]{t('context.title')}[/]",
@@ -220,7 +221,7 @@ def _handle_login_command() -> None:
 
     save_credentials(account_id, api_token)
     display_info(t("login.success"))
-    console.print(f"  [dim]{t('login.restart_hint')}[/]")
+    console.print(f"  [dim]{t('login.reconnect_hint')}[/]")
 
 
 def _handle_logout_command() -> None:

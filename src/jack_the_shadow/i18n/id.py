@@ -10,14 +10,29 @@ STRINGS: dict[str, str] = {
     "banner.model": "Model",
     "banner.yolo": "YOLO",
     "banner.lang": "Bahasa",
-    "banner.hint": "Ketik [bold]/[/bold] untuk perintah, langsung ketik untuk chat.",
-    "banner.tagline": "« Agen Penetration-Testing Otonom »",
+    "banner.no_target": "Belum di-set — pake /target atau bilang aja ke Jack",
+    "banner.hint": "Ketik [bold]/[/bold] untuk perintah, langsung ketik untuk chat sama Jack.",
+    "banner.tagline": "« Agen Cybersecurity Otonom »",
     "banner.no_creds": (
-        "[warning]⚠  Kredensial Cloudflare API belum dikonfigurasi.[/]\n"
-        "[dim]  Pakai [bold]/login[/bold] untuk koneksi akun Cloudflare,\n"
-        "  atau set CLOUDFLARE_ACCOUNT_ID dan CLOUDFLARE_API_TOKEN di env vars.\n"
-        "  Jalan di mode offline — tool system aktif tapi AI "
-        "masih stub.[/]"
+        "[warning]⚠  Belum konek ke Cloudflare AI.[/]\n"
+        "[dim]  Pake [bold]/login[/bold] untuk koneksi akun Cloudflare.\n"
+        "  Tool tetep jalan, tapi Jack gak bisa mikir tanpa AI backend.[/]"
+    ),
+
+    # ── Auth gate (startup)
+    "auth.gate_header": "🔐 Pertama-tama — lo harus konek AI backend dulu.",
+    "auth.gate_body": (
+        "Jack butuh kredensial Cloudflare Workers AI buat mikir.\n"
+        "  Ambil di: https://dash.cloudflare.com → AI → Workers AI"
+    ),
+    "auth.skipped": "Gak papa, jalan di mode offline. Pake /login kapan aja buat konek.",
+    "auth.connected": "🟢 Terkoneksi ke Cloudflare Workers AI",
+
+    # ── Welcome message
+    "welcome.message": (
+        "  [bold cyan]Mau ngapain nih?[/]\n"
+        "  [dim]Kasih target, jelasin tantangan CTF, tanya soal CVE,\n"
+        "  atau bilang aja apa yang dibutuhin. Pake /target buat lock scope.[/]"
     ),
 
     # ── Spinner / status
@@ -52,7 +67,7 @@ STRINGS: dict[str, str] = {
     "cmd.exit.desc": "Keluar dari Jack The Shadow",
     "cmd.model.desc": "Ganti model AI",
     "cmd.lang.desc": "Ganti bahasa (en/id)",
-    "cmd.target.desc": "Ubah target scope",
+    "cmd.target.desc": "Set atau ubah target scope",
     "cmd.context.desc": "Tampilkan pemakaian context window",
     "cmd.tools.desc": "Daftar tool yang tersedia",
     "cmd.models.desc": "Daftar model AI yang tersedia",
@@ -67,7 +82,7 @@ STRINGS: dict[str, str] = {
     "login.instruction": "Masukin kredensial Cloudflare Workers AI lo.",
     "login.empty_fields": "Account ID dan API Token gak boleh kosong.",
     "login.success": "Kredensial disimpan di ~/.jshadow/credentials.json",
-    "login.restart_hint": "Restart jshadow atau reconnect buat pake kredensial baru.",
+    "login.reconnect_hint": "Jack bakal auto-reconnect — gak perlu restart.",
     "logout.success": "Kredensial dihapus. Lo udah logout.",
     "logout.not_logged_in": "Gak ada kredensial tersimpan.",
 
@@ -85,12 +100,10 @@ STRINGS: dict[str, str] = {
     # ── Goodbye
     "goodbye": "👋 Jack menghilang ke dalam bayangan...",
 
-    # ── Offline stub
-    "offline.response": (
-        "*[Mode Offline]* Kredensial API belum diset.\n\n"
-        "Pakai `/login` untuk koneksi akun Cloudflare, atau set\n"
-        "`CLOUDFLARE_ACCOUNT_ID` dan `CLOUDFLARE_API_TOKEN` di env vars.\n\n"
-        "Lo bilang: **{input}**\nTarget: `{target}`"
+    # ── Offline hint (ditampilkan saat user ngetik tapi AI belum konek)
+    "offline.hint": (
+        "Otak Jack belum terkoneksi. Pake [bold]/login[/bold] untuk konek "
+        "Cloudflare Workers AI, atau set env vars."
     ),
 
     # ── Language switch

@@ -1,6 +1,6 @@
 # Jack The Shadow
 
-**Autonomous Penetration-Testing CLI Agent** powered by Cloudflare Workers AI.
+**Autonomous Cybersecurity CLI Agent** powered by Cloudflare Workers AI.
 
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License MIT](https://img.shields.io/badge/license-MIT-green)
@@ -10,8 +10,10 @@
 
 ## What is Jack?
 
-Jack The Shadow is an enterprise-grade, modular CLI agent that assists
-with penetration testing, security assessments, and red-team operations.
+Jack The Shadow is an enterprise-grade, modular CLI agent for the full
+cybersecurity spectrum: **penetration testing**, **CTF challenges**,
+**bug bounty hunting**, **security research**, **digital forensics**,
+and **OSINT**.
 
 - **11 built-in tools** — bash, file ops, grep, glob, HTTP, web fetch
   (with Cloudflare bypass), web search, and MCP integration
@@ -49,16 +51,19 @@ pip install .
 ## Getting Started
 
 ```bash
-# 1. Login to Cloudflare
-jshadow --target 127.0.0.1
-# Then use /login at the prompt
+# Just launch it — Jack handles the rest
+jshadow
 
-# 2. Or set credentials directly
+# Or start with a target already set
 jshadow --target 192.168.1.0/24
 
-# 3. With options
+# With language and model options
 jshadow --target example.com --model @cf/meta/llama-3.3-70b-instruct-fp8-fast --lang id
 ```
+
+On first launch, Jack will ask you to log in with your Cloudflare Workers AI
+credentials. You can also skip login and use Jack in offline mode (tools work
+but AI responses are unavailable until you `/login`).
 
 ## Authentication
 

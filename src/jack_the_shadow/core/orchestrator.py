@@ -3,12 +3,13 @@ Jack The Shadow — Orchestrator
 
 The AI ↔ tool-call loop extracted from main.py for clean separation.
 Handles multi-round tool calling, result feeding, and display.
+Supports live AI reconnection via /login.
 """
 
 from __future__ import annotations
 
 import json
-from typing import Any, NoReturn
+from typing import Any, Callable, NoReturn, Optional
 
 from jack_the_shadow.core.engine import CloudflareAI, CloudflareAIError
 from jack_the_shadow.core.state import AppState
@@ -18,6 +19,7 @@ from jack_the_shadow.ui import (
     console,
     display_ai_message,
     display_error,
+    display_info,
     display_user_message,
     handle_local_command,
     prompt_user,
@@ -26,6 +28,9 @@ from jack_the_shadow.ui import (
 from jack_the_shadow.utils.logger import get_logger
 
 logger = get_logger("core.orchestrator")
+
+# Type for the factory that creates AI clients (for live reconnect)
+AIFactory = Callable[[str], Optional[CloudflareAI]]
 
 
 def process_tool_calls(
@@ -111,8 +116,14 @@ def main_loop(
     executor: ToolExecutor,
     tool_schemas: list[dict[str, Any]],
     tool_names: list[str],
+    ai_factory: AIFactory | None = None,
 ) -> NoReturn:
-    """The main interactive prompt loop."""
+    """The main interactive prompt loop.
+
+    Args:
+        ai_factory: Optional callable(model) -> CloudflareAI for reconnecting
+                    after /login without restarting.
+    """
     while True:
         user_input = prompt_user()
 
@@ -120,20 +131,21 @@ def main_loop(
             continue
 
         if user_input.startswith("/"):
+            was_login = user_input.strip().lower().startswith("/login")
             handle_local_command(user_input, state, tool_names, executor)
+
+            # Live reconnect after /login
+            if was_login and ai is None and ai_factory is not None:
+                new_ai = ai_factory(state.model)
+                if new_ai is not None:
+                    ai = new_ai
+                    display_info(t("auth.connected"))
             continue
 
         display_user_message(user_input)
         state.add_message("user", user_input)
 
         if ai is None:
-            with status_spinner():
-                ai_response = t(
-                    "offline.response",
-                    input=user_input,
-                    target=state.target,
-                )
-            state.add_message("assistant", ai_response)
-            display_ai_message(ai_response)
+            display_error(t("offline.hint"))
         else:
             query_ai(ai, state, executor, tool_schemas)

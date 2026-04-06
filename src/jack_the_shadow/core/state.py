@@ -21,9 +21,9 @@ logger = get_logger("core.state")
 class AppState:
     """Encapsulates all mutable session state."""
 
-    target: str
     model: str
     language: str = "en"
+    target: str = ""
     yolo_mode: bool = False
     context_messages: list[dict[str, Any]] = field(default_factory=list)
 
@@ -46,7 +46,10 @@ class AppState:
         logger.debug("Added assistant message (raw)")
 
     def get_messages_for_api(self) -> list[dict[str, Any]]:
-        system = {"role": "system", "content": get_system_prompt(self.language)}
+        prompt = get_system_prompt(self.language)
+        if self.target:
+            prompt += f"\n\n## Active Target\nCurrent target scope: `{self.target}`"
+        system = {"role": "system", "content": prompt}
         return [system] + list(self.context_messages)
 
     # ── Context management

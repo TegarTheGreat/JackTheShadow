@@ -2,7 +2,8 @@
 """
 Jack The Shadow — CLI Entry Point
 
-CLI argument parsing, initialisation, and handoff to the orchestrator.
+Starts the interactive agent. No mandatory arguments — target is set in chat.
+If no credentials are found, forces an interactive login first.
 """
 
 from __future__ import annotations
@@ -15,10 +16,10 @@ from jack_the_shadow.core.engine import CloudflareAI
 from jack_the_shadow.core.orchestrator import main_loop
 from jack_the_shadow.core.state import AppState
 from jack_the_shadow.i18n import set_language, t
-from jack_the_shadow.session import ensure_session_dir, load_credentials
+from jack_the_shadow.session import ensure_session_dir, is_logged_in, load_credentials
 from jack_the_shadow.tools.executor import ToolExecutor
 from jack_the_shadow.tools.registry import build_default_registry
-from jack_the_shadow.ui import console, display_banner, display_error
+from jack_the_shadow.ui import console, display_banner, display_error, display_info
 from jack_the_shadow.utils.logger import get_logger
 
 logger = get_logger("cli")
@@ -27,12 +28,13 @@ logger = get_logger("cli")
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="jshadow",
-        description="Jack The Shadow — Autonomous Penetration-Testing Agent",
-        epilog="Example: jshadow --target 192.168.1.0/24",
+        description="Jack The Shadow — Autonomous Cybersecurity Agent",
+        epilog="Examples:\n  jshadow\n  jshadow --target 192.168.1.0/24\n  jshadow -l id",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
-        "--target", "-t", required=True,
-        help="Target scope (IP, CIDR, domain, or URL). Required.",
+        "--target", "-t", default="",
+        help="Target scope (IP, CIDR, domain, or URL). Can also be set in chat with /target.",
     )
     parser.add_argument(
         "--model", "-m", default=DEFAULT_MODEL,
@@ -45,6 +47,32 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _run_login_gate() -> bool:
+    """If no credentials, force interactive login. Returns True if logged in."""
+    if is_logged_in():
+        return True
+
+    console.print(f"\n[warning]{t('auth.gate_header')}[/]")
+    console.print(f"[dim]{t('auth.gate_body')}[/]\n")
+
+    from jack_the_shadow.ui.commands import _handle_login_command
+    _handle_login_command()
+
+    return is_logged_in()
+
+
+def _create_ai_client(model: str) -> CloudflareAI | None:
+    """Try to create AI client from stored/env credentials."""
+    account_id, api_token = load_credentials()
+    if account_id and api_token:
+        return CloudflareAI(
+            account_id=account_id,
+            api_token=api_token,
+            model=model,
+        )
+    return None
+
+
 def main() -> None:
     parser = _build_parser()
     args = parser.parse_args()
@@ -53,39 +81,41 @@ def main() -> None:
     set_language(args.lang)
 
     state = AppState(
-        target=args.target,
         model=args.model,
         language=args.lang,
+        target=args.target,
     )
     executor = ToolExecutor(state)
     registry = build_default_registry()
     tool_schemas = registry.get_all_schemas()
     tool_names = registry.list_names()
 
-    logger.info(
-        "Starting Jack — target=%s model=%s lang=%s tools=%s",
-        state.target, state.model, state.language, tool_names,
-    )
-
-    account_id, api_token = load_credentials()
-    ai: CloudflareAI | None = None
-    if account_id and api_token:
-        ai = CloudflareAI(
-            account_id=account_id,
-            api_token=api_token,
-            model=state.model,
-        )
-    else:
-        logger.warning("No Cloudflare credentials — offline mode")
-
     display_banner(state)
+
+    # ── Auth gate: if no creds, force login
+    if not is_logged_in():
+        logged_in = _run_login_gate()
+        if not logged_in:
+            console.print(f"\n[dim]{t('auth.skipped')}[/]\n")
+
+    ai = _create_ai_client(state.model)
 
     if ai is None:
         console.print(t("banner.no_creds"))
         console.print()
+    else:
+        display_info(t("auth.connected"))
+
+    # Show welcome message
+    console.print(f"\n[dim]{t('welcome.message')}[/]\n")
+
+    logger.info(
+        "Starting Jack — target=%s model=%s lang=%s tools=%s",
+        state.target or "(none)", state.model, state.language, tool_names,
+    )
 
     try:
-        main_loop(state, ai, executor, tool_schemas, tool_names)
+        main_loop(state, ai, executor, tool_schemas, tool_names, _create_ai_client)
     except SystemExit:
         executor.mcp.shutdown()
         logger.info("Clean shutdown")

@@ -10,14 +10,29 @@ STRINGS: dict[str, str] = {
     "banner.model": "Model",
     "banner.yolo": "YOLO",
     "banner.lang": "Lang",
-    "banner.hint": "Type [bold]/[/bold] for commands, start typing to chat.",
-    "banner.tagline": "« Autonomous Penetration-Testing Agent »",
+    "banner.no_target": "Not set — use /target or tell Jack",
+    "banner.hint": "Type [bold]/[/bold] for commands, start typing to chat with Jack.",
+    "banner.tagline": "« Autonomous Cybersecurity Agent »",
     "banner.no_creds": (
-        "[warning]⚠  Cloudflare API credentials not configured.[/]\n"
-        "[dim]  Use [bold]/login[/bold] to connect your Cloudflare account,\n"
-        "  or set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN env vars.\n"
-        "  Running in offline mode — tool system is active but AI "
-        "responses are stubbed.[/]"
+        "[warning]⚠  No Cloudflare AI connection.[/]\n"
+        "[dim]  Use [bold]/login[/bold] to connect your Cloudflare account.\n"
+        "  Tools still work, but Jack can't think without an AI backend.[/]"
+    ),
+
+    # ── Auth gate (startup)
+    "auth.gate_header": "🔐 First things first — you need to connect your AI backend.",
+    "auth.gate_body": (
+        "Jack needs Cloudflare Workers AI credentials to think.\n"
+        "  You can get these from: https://dash.cloudflare.com → AI → Workers AI"
+    ),
+    "auth.skipped": "No worries, running in offline mode. Use /login anytime to connect.",
+    "auth.connected": "🟢 Connected to Cloudflare Workers AI",
+
+    # ── Welcome message
+    "welcome.message": (
+        "  [bold cyan]What's the play?[/]\n"
+        "  [dim]Drop a target, describe a CTF challenge, ask about a CVE,\n"
+        "  or just tell Jack what you need. Use /target to lock scope.[/]"
     ),
 
     # ── Spinner / status
@@ -52,7 +67,7 @@ STRINGS: dict[str, str] = {
     "cmd.exit.desc": "Quit Jack The Shadow",
     "cmd.model.desc": "Switch AI model",
     "cmd.lang.desc": "Switch language (en/id)",
-    "cmd.target.desc": "Change target scope",
+    "cmd.target.desc": "Set or change target scope",
     "cmd.context.desc": "Show context window usage",
     "cmd.tools.desc": "List available tools",
     "cmd.models.desc": "List available AI models",
@@ -67,7 +82,7 @@ STRINGS: dict[str, str] = {
     "login.instruction": "Enter your Cloudflare Workers AI credentials.",
     "login.empty_fields": "Account ID and API Token cannot be empty.",
     "login.success": "Credentials saved to ~/.jshadow/credentials.json",
-    "login.restart_hint": "Restart jshadow or reconnect to use the new credentials.",
+    "login.reconnect_hint": "Jack will reconnect automatically — no restart needed.",
     "logout.success": "Credentials cleared. You're now logged out.",
     "logout.not_logged_in": "No stored credentials found.",
 
@@ -85,12 +100,10 @@ STRINGS: dict[str, str] = {
     # ── Goodbye
     "goodbye": "👋 Jack fades into the shadows...",
 
-    # ── Offline stub
-    "offline.response": (
-        "*[Offline Mode]* No API credentials configured.\n\n"
-        "Use `/login` to connect your Cloudflare account, or set\n"
-        "`CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` env vars.\n\n"
-        "You said: **{input}**\nTarget: `{target}`"
+    # ── Offline hint (shown when user types but no AI connected)
+    "offline.hint": (
+        "Jack's brain isn't connected yet. Use [bold]/login[/bold] to hook up "
+        "Cloudflare Workers AI, or set env vars."
     ),
 
     # ── Language switch
