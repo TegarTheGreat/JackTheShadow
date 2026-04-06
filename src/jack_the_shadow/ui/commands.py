@@ -2,6 +2,7 @@
 Jack The Shadow — Slash Command System
 
 Interactive command menu and all local command handlers.
+All menus use numbered lists with plain input() — no arrow keys needed.
 """
 
 from __future__ import annotations
@@ -33,13 +34,24 @@ SLASH_COMMANDS: list[tuple[str, str]] = [
     ("/login",   "cmd.login.desc"),
     ("/logout",  "cmd.logout.desc"),
     ("/mcp",     "cmd.mcp.desc"),
+    ("/history", "cmd.history.desc"),
+    ("/export",  "cmd.export.desc"),
     ("/help",    "cmd.help.desc"),
     ("/exit",    "cmd.exit.desc"),
 ]
 
 
+def _safe_input(prompt_text: str) -> str:
+    """Read input with a plain prompt. Returns '' on cancel."""
+    try:
+        return input(prompt_text).strip()
+    except (EOFError, KeyboardInterrupt):
+        console.print()
+        return ""
+
+
 def _display_command_menu() -> Optional[str]:
-    """Show a numbered menu of slash commands and let user pick one."""
+    """Show a numbered menu — user types a number or command name."""
     console.print()
     table = Table(
         title="[info]Commands[/]",
@@ -55,33 +67,26 @@ def _display_command_menu() -> Optional[str]:
         table.add_row(str(i), cmd, t(desc_key))
 
     console.print(table)
-    console.print()
+    console.print("[dim]  Type a number, command name, or press Enter to cancel.[/]")
 
-    try:
-        choice = console.input(
-            "[bold white]  Pick a number (or type command): [/]"
-        ).strip()
-    except (EOFError, KeyboardInterrupt):
-        return None
-
+    choice = _safe_input("  > ")
     if not choice:
         return None
 
+    # By number
     if choice.isdigit():
         idx = int(choice) - 1
         if 0 <= idx < len(SLASH_COMMANDS):
             selected = SLASH_COMMANDS[idx][0]
-            if selected in ("/model", "/lang", "/target", "/login"):
-                try:
-                    arg = console.input(
-                        f"[dim]  {selected} [/][bold white]→ value: [/]"
-                    ).strip()
-                except (EOFError, KeyboardInterrupt):
-                    return None
+            # Commands that need an argument
+            if selected in ("/model", "/lang", "/target", "/compact"):
+                arg = _safe_input(f"  {selected} → value: ")
                 return f"{selected} {arg}" if arg else selected
             return selected
+        console.print("[dim]  Invalid number.[/]")
         return None
 
+    # By name
     if choice.startswith("/"):
         return choice
     return None
@@ -194,26 +199,13 @@ def _handle_login_command() -> None:
             f"\n[info]  {t('login.already_logged_in')}[/]\n"
             f"  [dim]{t('login.source', source=source)}[/]"
         )
-        try:
-            overwrite = console.input(
-                f"\n[bold white]  {t('login.overwrite_prompt')}[/]"
-            ).strip().lower()
-        except (EOFError, KeyboardInterrupt):
-            return
-        if overwrite not in ("y", "yes"):
+        overwrite = _safe_input(f"\n  {t('login.overwrite_prompt')}")
+        if overwrite.lower() not in ("y", "yes"):
             return
 
     console.print(f"\n[info]  {t('login.instruction')}[/]\n")
-    try:
-        account_id = console.input(
-            "[bold white]  Cloudflare Account ID: [/]"
-        ).strip()
-        api_token = console.input(
-            "[bold white]  Cloudflare API Token:  [/]"
-        ).strip()
-    except (EOFError, KeyboardInterrupt):
-        console.print(f"\n[dim]  {t('hitl.cancelled')}[/]")
-        return
+    account_id = _safe_input("  Cloudflare Account ID: ")
+    api_token = _safe_input("  Cloudflare API Token:  ")
 
     if not account_id or not api_token:
         display_error(t("login.empty_fields"))
@@ -239,13 +231,57 @@ def _handle_logout_command() -> None:
         display_info(t("logout.not_logged_in"))
 
 
+def _handle_history_command() -> None:
+    """List past sessions and allow resuming one."""
+    from jack_the_shadow.session.history import list_sessions
+
+    sessions = list_sessions()
+    if not sessions:
+        console.print("[dim]  No saved sessions found.[/]")
+        return
+
+    table = Table(title="[info]Saved Sessions[/]", border_style="blue")
+    table.add_column("No", style="bold", width=4)
+    table.add_column("Date", style="dim", width=20)
+    table.add_column("Target", style="cyan", width=25)
+    table.add_column("Messages", style="white", width=10)
+
+    for i, s in enumerate(sessions, 1):
+        table.add_row(str(i), s["date"], s["target"] or "(none)", str(s["messages"]))
+
+    console.print(table)
+    console.print("[dim]  Type a number to resume, or Enter to cancel.[/]")
+
+    choice = _safe_input("  > ")
+    if choice.isdigit():
+        idx = int(choice) - 1
+        if 0 <= idx < len(sessions):
+            return sessions[idx]["id"]  # type: ignore[return-value]
+    return None
+
+
+def _handle_export_command(state: Any) -> None:
+    """Export current conversation to a markdown file."""
+    from jack_the_shadow.session.history import export_session
+
+    if not state.context_messages:
+        console.print("[dim]  Nothing to export — conversation is empty.[/]")
+        return
+
+    filepath = export_session(state)
+    if filepath:
+        display_info(f"Session exported → {filepath}")
+    else:
+        display_error("Failed to export session.")
+
+
 def handle_local_command(
     command: str,
     state: Any,
     tool_names: Optional[list[str]] = None,
     executor: Optional[Any] = None,
-) -> bool:
-    """Process a slash command.  Returns True if handled."""
+) -> Any:
+    """Process a slash command.  Returns True if handled, or session_id for /history resume."""
     from jack_the_shadow.ui.panels import display_yolo_toggle
 
     parts = command.strip().split(maxsplit=1)
@@ -258,7 +294,7 @@ def handle_local_command(
             return handle_local_command(selected, state, tool_names, executor)
         return True
 
-    if cmd in ("/exit", "/quit"):
+    if cmd in ("/exit", "/quit", "/q"):
         console.print(f"\n[dim]{t('goodbye')}[/]\n")
         logger.info("User requested /exit")
         raise SystemExit(0)
@@ -293,11 +329,10 @@ def handle_local_command(
     if cmd == "/model":
         if not arg:
             _show_models_list(state)
-            try:
-                choice = console.input("[bold white]  Pick number or model ID: [/]").strip()
-            except (EOFError, KeyboardInterrupt):
+            console.print("[dim]  Type a number or model ID, or Enter to cancel.[/]")
+            arg = _safe_input("  > ")
+            if not arg:
                 return True
-            arg = choice
 
         if arg.isdigit():
             idx = int(arg) - 1
@@ -323,6 +358,19 @@ def handle_local_command(
         return True
 
     if cmd == "/lang":
+        if not arg:
+            console.print("[dim]  1. English  2. Bahasa Indonesia[/]")
+            choice = _safe_input("  > ")
+            if choice == "1":
+                arg = "en"
+            elif choice == "2":
+                arg = "id"
+            elif choice in ("en", "id"):
+                arg = choice
+            else:
+                display_error(t("lang.invalid"))
+                return True
+
         if arg in ("en", "id"):
             state.language = arg
             set_language(arg)
@@ -332,6 +380,9 @@ def handle_local_command(
         return True
 
     if cmd == "/target":
+        if not arg:
+            console.print("[dim]  Enter target scope (IP, CIDR, domain, URL):[/]")
+            arg = _safe_input("  > ")
         if arg:
             state.target = arg
             display_info(t("target.switched", target=arg))
@@ -351,9 +402,19 @@ def handle_local_command(
         _handle_mcp_command(arg, executor)
         return True
 
+    if cmd == "/history":
+        result = _handle_history_command()
+        if result:
+            return ("resume", result)
+        return True
+
+    if cmd == "/export":
+        _handle_export_command(state)
+        return True
+
     if cmd == "/help":
         _display_command_menu()
         return True
 
-    console.print(f"[dim]Unknown command: {cmd}. Type / for menu.[/]")
+    console.print(f"[dim]  Unknown command: {cmd}. Type / for menu.[/]")
     return True

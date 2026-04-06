@@ -72,6 +72,8 @@ STRINGS: dict[str, str] = {
     "cmd.tools.desc": "List available tools",
     "cmd.models.desc": "List available AI models",
     "cmd.compact.desc": "Compact context (keep last N messages)",
+    "cmd.history.desc": "List & resume saved sessions",
+    "cmd.export.desc": "Export conversation as markdown report",
 
     # ── Login / Logout
     "cmd.login.desc": "Connect Cloudflare AI credentials",

@@ -29,8 +29,9 @@ class ToolRegistry:
 
 
 def build_default_registry() -> ToolRegistry:
-    """Create a registry pre-loaded with all 11 built-in tools."""
+    """Create a registry pre-loaded with all 12 built-in tools."""
     from jack_the_shadow.tools.builtin.bash import BashExecuteTool
+    from jack_the_shadow.tools.builtin.cve import CVELookupTool
     from jack_the_shadow.tools.builtin.directory import ListDirectoryTool
     from jack_the_shadow.tools.builtin.files import FileEditTool, FileReadTool, FileWriteTool
     from jack_the_shadow.tools.builtin.http import HttpRequestTool
@@ -51,6 +52,7 @@ def build_default_registry() -> ToolRegistry:
         HttpRequestTool,
         WebFetchTool,
         WebSearchTool,
+        CVELookupTool,
         MCPCallTool,
     ]:
         registry.register(tool_cls)

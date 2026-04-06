@@ -1,11 +1,12 @@
 """
 Jack The Shadow — User Prompt & Spinner
 
-The ``jack>`` input prompt and status spinner context manager.
+The ``jshadow>`` input prompt (with readline support) and status spinner.
 """
 
 from __future__ import annotations
 
+import readline  # noqa: F401 — importing enables arrow keys + history in input()
 from contextlib import contextmanager
 from typing import Generator, Optional
 
@@ -14,9 +15,13 @@ from jack_the_shadow.ui.console import console
 
 
 def prompt_user() -> str:
-    """Show the ``jshadow>`` prompt and return user input."""
+    """Show the ``jshadow>`` prompt and return user input.
+
+    Uses raw input() instead of console.input() so that readline
+    handles arrow keys, history (up/down), and line editing properly.
+    """
     try:
-        return console.input("[bold cyan]jshadow>[/] ").strip()
+        return input("\033[1;36mjshadow>\033[0m ").strip()
     except (EOFError, KeyboardInterrupt):
         console.print(f"\n[dim]{t('goodbye')}[/]\n")
         raise SystemExit(0)

@@ -85,7 +85,7 @@ Jack uses `~/.jshadow/credentials.json` to store your Cloudflare credentials sec
 
 ## Slash Commands
 
-Type `/` at the prompt for an interactive menu, or use directly:
+Type `/` at the prompt for an interactive numbered menu, or use directly:
 
 | Command | Description |
 |---------|-------------|
@@ -96,13 +96,15 @@ Type `/` at the prompt for an interactive menu, or use directly:
 | `/compact` | Compact context (keep last N) |
 | `/context` | Show context window usage |
 | `/tools` | List available tools |
-| `/model` | Switch AI model |
+| `/model` | Switch AI model (numbered list) |
 | `/models` | List available models |
 | `/lang` | Switch language (en/id) |
-| `/target` | Change target scope |
+| `/target` | Set or change target scope |
+| `/history` | List & resume saved sessions |
+| `/export` | Export conversation as markdown report |
 | `/mcp` | Manage MCP server connections |
 | `/help` | Show command menu |
-| `/exit` | Quit |
+| `/exit` | Quit (auto-saves session) |
 
 ## Tools
 
@@ -118,6 +120,7 @@ Type `/` at the prompt for an interactive menu, or use directly:
 | `http_request` | ✅ | HTTP requests |
 | `web_fetch` | — | Fetch URL → Markdown (CF bypass) |
 | `web_search` | — | DuckDuckGo search |
+| `cve_lookup` | — | NIST NVD CVE search |
 | `mcp_call` | ✅ | Call MCP server tools |
 
 ## Session Directory
@@ -125,8 +128,8 @@ Type `/` at the prompt for an interactive menu, or use directly:
 ```
 ~/.jshadow/
 ├── credentials.json   # Cloudflare auth (chmod 600)
-├── config.json        # User preferences (future)
-└── sessions/          # Conversation history (future)
+├── config.json        # User preferences (model, language)
+└── sessions/          # Saved conversation history (JSONL)
 ```
 
 ## Architecture

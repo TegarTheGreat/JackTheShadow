@@ -80,9 +80,19 @@ def main() -> None:
     ensure_session_dir()
     set_language(args.lang)
 
+    # Load user config preferences (saved from previous sessions)
+    from jack_the_shadow.session.user_config import load_user_config, update_user_config
+    user_config = load_user_config()
+
+    # User config provides defaults, CLI args override
+    model = args.model if args.model != DEFAULT_MODEL else (user_config.get("model") or DEFAULT_MODEL)
+    lang = args.lang if args.lang != DEFAULT_LANGUAGE else (user_config.get("language") or DEFAULT_LANGUAGE)
+    if lang != args.lang:
+        set_language(lang)
+
     state = AppState(
-        model=args.model,
-        language=args.lang,
+        model=model,
+        language=lang,
         target=args.target,
     )
     executor = ToolExecutor(state)
@@ -107,7 +117,7 @@ def main() -> None:
         display_info(t("auth.connected"))
 
     # Show welcome message
-    console.print(f"\n[dim]{t('welcome.message')}[/]\n")
+    console.print(f"\n{t('welcome.message')}\n")
 
     logger.info(
         "Starting Jack — target=%s model=%s lang=%s tools=%s",
@@ -117,6 +127,8 @@ def main() -> None:
     try:
         main_loop(state, ai, executor, tool_schemas, tool_names, _create_ai_client)
     except SystemExit:
+        # Save user preferences for next launch
+        update_user_config(model=state.model, language=state.language)
         executor.mcp.shutdown()
         logger.info("Clean shutdown")
     except Exception as exc:

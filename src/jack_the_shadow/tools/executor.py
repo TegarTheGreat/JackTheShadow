@@ -28,6 +28,7 @@ class ToolExecutor:
 
         # Import handlers lazily to avoid circular imports
         from jack_the_shadow.tools.builtin.bash import handle_bash_execute
+        from jack_the_shadow.tools.builtin.cve import handle_cve_lookup
         from jack_the_shadow.tools.builtin.directory import handle_list_directory
         from jack_the_shadow.tools.builtin.files import (
             handle_file_edit,
@@ -51,6 +52,7 @@ class ToolExecutor:
             "http_request": handle_http_request,
             "web_fetch": handle_web_fetch,
             "web_search": handle_web_search,
+            "cve_lookup": handle_cve_lookup,
             "mcp_call": handle_mcp_call,
         }
 

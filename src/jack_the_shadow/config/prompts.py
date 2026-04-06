@@ -47,6 +47,8 @@ You have these tools at your disposal:
 10. **web_search** — Search the web via DuckDuckGo. Find CVEs, exploits, \
     docs, writeups, anything you need.
 11. **mcp_call** — Call tools on connected MCP servers for extended capabilities.
+12. **cve_lookup** — Search the NIST NVD database for CVE details, CVSS scores, \
+    and severity. Great for vulnerability research.
 
 ## Rules
 - NEVER fabricate tool output. If a command fails, report the real error.
@@ -101,6 +103,8 @@ Lo punya tool-tool ini:
 10. **web_search** — Cari info di web pake DuckDuckGo. Cari CVE, exploit, \
     docs, writeup, apa aja yang dibutuhin.
 11. **mcp_call** — Panggil tool di MCP server yang terkoneksi.
+12. **cve_lookup** — Cari database NIST NVD buat detail CVE, skor CVSS, \
+    dan severity. Bagus buat riset vulnerability.
 
 ## Aturan
 - JANGAN PERNAH ngarang output tool. Kalo command gagal, laporin error asli.
@@ -119,4 +123,19 @@ Lo punya tool-tool ini:
 
 def get_system_prompt(lang: str = "en") -> str:
     """Return the system prompt for the given language."""
-    return SYSTEM_PROMPT_ID if lang == "id" else SYSTEM_PROMPT_EN
+    prompt = SYSTEM_PROMPT_ID if lang == "id" else SYSTEM_PROMPT_EN
+    # Explicitly instruct the AI which language to use in responses
+    if lang == "id":
+        prompt += (
+            "\n\n## PENTING: Bahasa\n"
+            "SELALU jawab dalam Bahasa Indonesia gaul/slang. "
+            "Jangan pernah jawab pakai Bahasa Inggris kecuali diminta. "
+            "Gunakan gaya bahasa santai anak Jakarta."
+        )
+    else:
+        prompt += (
+            "\n\n## IMPORTANT: Language\n"
+            "ALWAYS respond in English. Use casual hacker slang. "
+            "Never switch to another language unless the user asks."
+        )
+    return prompt

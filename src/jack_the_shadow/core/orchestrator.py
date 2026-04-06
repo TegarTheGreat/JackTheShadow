@@ -2,7 +2,7 @@
 Jack The Shadow — Orchestrator
 
 The AI ↔ tool-call loop extracted from main.py for clean separation.
-Handles multi-round tool calling, result feeding, and display.
+Handles multi-round tool calling, result feeding, display, and session auto-save.
 Supports live AI reconnection via /login.
 """
 
@@ -110,6 +110,39 @@ def query_ai(
     logger.warning("Tool-call loop hit max rounds (%d)", max_tool_rounds)
 
 
+def _auto_save_session(state: AppState) -> None:
+    """Auto-save the session on exit."""
+    try:
+        from jack_the_shadow.session.history import save_session
+        if state.context_messages:
+            path = save_session(state)
+            if path:
+                console.print(f"[dim]  Session saved → {path}[/]")
+    except Exception as exc:
+        logger.warning("Auto-save failed: %s", exc)
+
+
+def _resume_session(session_id: str, state: AppState) -> None:
+    """Load a previous session into current state."""
+    from jack_the_shadow.session.history import load_session
+
+    data = load_session(session_id)
+    if data is None:
+        display_error(f"Session '{session_id}' not found.")
+        return
+
+    meta = data["metadata"]
+    messages = data["messages"]
+
+    if meta.get("target"):
+        state.target = meta["target"]
+    state.context_messages = messages
+    display_info(
+        f"Resumed session: {meta.get('date', '?')} — "
+        f"{len(messages)} messages, target: {meta.get('target', '(none)')}"
+    )
+
+
 def main_loop(
     state: AppState,
     ai: CloudflareAI | None,
@@ -125,14 +158,23 @@ def main_loop(
                     after /login without restarting.
     """
     while True:
-        user_input = prompt_user()
+        try:
+            user_input = prompt_user()
+        except SystemExit:
+            _auto_save_session(state)
+            raise
 
         if not user_input:
             continue
 
         if user_input.startswith("/"):
             was_login = user_input.strip().lower().startswith("/login")
-            handle_local_command(user_input, state, tool_names, executor)
+            cmd_result = handle_local_command(user_input, state, tool_names, executor)
+
+            # Handle /history resume
+            if isinstance(cmd_result, tuple) and cmd_result[0] == "resume":
+                _resume_session(cmd_result[1], state)
+                continue
 
             # Live reconnect after /login
             if was_login and ai is None and ai_factory is not None:
