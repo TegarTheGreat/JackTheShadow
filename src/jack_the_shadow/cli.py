@@ -10,16 +10,12 @@ from __future__ import annotations
 import argparse
 import sys
 
-from jack_the_shadow.config import (
-    CLOUDFLARE_ACCOUNT_ID,
-    CLOUDFLARE_API_TOKEN,
-    DEFAULT_LANGUAGE,
-    DEFAULT_MODEL,
-)
+from jack_the_shadow.config import DEFAULT_LANGUAGE, DEFAULT_MODEL
 from jack_the_shadow.core.engine import CloudflareAI
 from jack_the_shadow.core.orchestrator import main_loop
 from jack_the_shadow.core.state import AppState
 from jack_the_shadow.i18n import set_language, t
+from jack_the_shadow.session import ensure_session_dir, load_credentials
 from jack_the_shadow.tools.executor import ToolExecutor
 from jack_the_shadow.tools.registry import build_default_registry
 from jack_the_shadow.ui import console, display_banner, display_error
@@ -30,9 +26,9 @@ logger = get_logger("cli")
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="jack",
+        prog="jshadow",
         description="Jack The Shadow — Autonomous Penetration-Testing Agent",
-        epilog="Example: jack --target 192.168.1.0/24",
+        epilog="Example: jshadow --target 192.168.1.0/24",
     )
     parser.add_argument(
         "--target", "-t", required=True,
@@ -53,6 +49,7 @@ def main() -> None:
     parser = _build_parser()
     args = parser.parse_args()
 
+    ensure_session_dir()
     set_language(args.lang)
 
     state = AppState(
@@ -70,11 +67,12 @@ def main() -> None:
         state.target, state.model, state.language, tool_names,
     )
 
+    account_id, api_token = load_credentials()
     ai: CloudflareAI | None = None
-    if CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN:
+    if account_id and api_token:
         ai = CloudflareAI(
-            account_id=CLOUDFLARE_ACCOUNT_ID,
-            api_token=CLOUDFLARE_API_TOKEN,
+            account_id=account_id,
+            api_token=api_token,
             model=state.model,
         )
     else:

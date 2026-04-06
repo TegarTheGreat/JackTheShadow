@@ -1,7 +1,7 @@
 """
 Jack The Shadow — Logging Utility
 
-Consistent logging setup — file handler to jack.log,
+Consistent logging setup — file handler to jshadow.log,
 console handler CRITICAL-only to avoid clashing with rich UI.
 """
 
@@ -24,7 +24,7 @@ def _init_root_logger() -> None:
     if _initialized:
         return
 
-    root = logging.getLogger("jack")
+    root = logging.getLogger("jshadow")
     root.setLevel(getattr(logging, LOG_LEVEL.upper(), logging.DEBUG))
 
     formatter = logging.Formatter(_LOG_FORMAT, datefmt=_DATE_FORMAT)
@@ -43,8 +43,8 @@ def _init_root_logger() -> None:
 
 
 def get_logger(name: Optional[str] = None) -> logging.Logger:
-    """Return a child logger under the ``jack`` namespace."""
+    """Return a child logger under the ``jshadow`` namespace."""
     _init_root_logger()
     if name:
-        return logging.getLogger(f"jack.{name}")
-    return logging.getLogger("jack")
+        return logging.getLogger(f"jshadow.{name}")
+    return logging.getLogger("jshadow")

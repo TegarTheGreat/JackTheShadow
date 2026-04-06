@@ -15,8 +15,6 @@ import requests
 
 from jack_the_shadow.config import (
     API_ENDPOINT,
-    CLOUDFLARE_ACCOUNT_ID,
-    CLOUDFLARE_API_TOKEN,
     MAX_RETRIES,
     RETRY_BACKOFF_BASE,
 )
@@ -40,14 +38,15 @@ class CloudflareAI:
 
     def __init__(
         self,
-        account_id: str = CLOUDFLARE_ACCOUNT_ID,
-        api_token: str = CLOUDFLARE_API_TOKEN,
+        account_id: str,
+        api_token: str,
         model: str = "",
     ) -> None:
         if not account_id or not api_token:
             raise CloudflareAIError(
-                "CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN must be set. "
-                "Export them as environment variables or add to a .env file."
+                "Cloudflare credentials are required. "
+                "Use the /login command or set CLOUDFLARE_ACCOUNT_ID "
+                "and CLOUDFLARE_API_TOKEN environment variables."
             )
         self.account_id = account_id
         self.api_token = api_token
@@ -101,7 +100,7 @@ class CloudflareAI:
                 if resp.status_code in (401, 403):
                     raise CloudflareAIError(
                         f"Authentication failed (HTTP {resp.status_code}). "
-                        "Check your CLOUDFLARE_API_TOKEN.",
+                        "Use /login to update your credentials.",
                         status_code=resp.status_code,
                     )
 

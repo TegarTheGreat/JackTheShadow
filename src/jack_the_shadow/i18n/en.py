@@ -14,8 +14,8 @@ STRINGS: dict[str, str] = {
     "banner.tagline": "« Autonomous Penetration-Testing Agent »",
     "banner.no_creds": (
         "[warning]⚠  Cloudflare API credentials not configured.[/]\n"
-        "[dim]  Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN "
-        "in your environment or .env file.\n"
+        "[dim]  Use [bold]/login[/bold] to connect your Cloudflare account,\n"
+        "  or set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN env vars.\n"
         "  Running in offline mode — tool system is active but AI "
         "responses are stubbed.[/]"
     ),
@@ -58,6 +58,19 @@ STRINGS: dict[str, str] = {
     "cmd.models.desc": "List available AI models",
     "cmd.compact.desc": "Compact context (keep last N messages)",
 
+    # ── Login / Logout
+    "cmd.login.desc": "Connect Cloudflare AI credentials",
+    "cmd.logout.desc": "Disconnect / clear stored credentials",
+    "login.already_logged_in": "You're already logged in.",
+    "login.source": "Credentials loaded from: {source}",
+    "login.overwrite_prompt": "Overwrite existing credentials? [y/N]: ",
+    "login.instruction": "Enter your Cloudflare Workers AI credentials.",
+    "login.empty_fields": "Account ID and API Token cannot be empty.",
+    "login.success": "Credentials saved to ~/.jshadow/credentials.json",
+    "login.restart_hint": "Restart jshadow or reconnect to use the new credentials.",
+    "logout.success": "Credentials cleared. You're now logged out.",
+    "logout.not_logged_in": "No stored credentials found.",
+
     # ── Context
     "context.title": "Context Window",
     "context.messages": "Messages",
@@ -75,8 +88,8 @@ STRINGS: dict[str, str] = {
     # ── Offline stub
     "offline.response": (
         "*[Offline Mode]* No API credentials configured.\n\n"
-        "Set `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` "
-        "in your environment or `.env` file.\n\n"
+        "Use `/login` to connect your Cloudflare account, or set\n"
+        "`CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` env vars.\n\n"
         "You said: **{input}**\nTarget: `{target}`"
     ),
 

@@ -14,8 +14,8 @@ STRINGS: dict[str, str] = {
     "banner.tagline": "« Agen Penetration-Testing Otonom »",
     "banner.no_creds": (
         "[warning]⚠  Kredensial Cloudflare API belum dikonfigurasi.[/]\n"
-        "[dim]  Set CLOUDFLARE_ACCOUNT_ID dan CLOUDFLARE_API_TOKEN "
-        "di environment atau file .env.\n"
+        "[dim]  Pakai [bold]/login[/bold] untuk koneksi akun Cloudflare,\n"
+        "  atau set CLOUDFLARE_ACCOUNT_ID dan CLOUDFLARE_API_TOKEN di env vars.\n"
         "  Jalan di mode offline — tool system aktif tapi AI "
         "masih stub.[/]"
     ),
@@ -58,6 +58,19 @@ STRINGS: dict[str, str] = {
     "cmd.models.desc": "Daftar model AI yang tersedia",
     "cmd.compact.desc": "Kompres konteks (simpan N pesan terakhir)",
 
+    # ── Login / Logout
+    "cmd.login.desc": "Koneksi kredensial Cloudflare AI",
+    "cmd.logout.desc": "Putus koneksi / hapus kredensial tersimpan",
+    "login.already_logged_in": "Lo udah login.",
+    "login.source": "Kredensial dimuat dari: {source}",
+    "login.overwrite_prompt": "Timpa kredensial yang ada? [y/N]: ",
+    "login.instruction": "Masukin kredensial Cloudflare Workers AI lo.",
+    "login.empty_fields": "Account ID dan API Token gak boleh kosong.",
+    "login.success": "Kredensial disimpan di ~/.jshadow/credentials.json",
+    "login.restart_hint": "Restart jshadow atau reconnect buat pake kredensial baru.",
+    "logout.success": "Kredensial dihapus. Lo udah logout.",
+    "logout.not_logged_in": "Gak ada kredensial tersimpan.",
+
     # ── Context
     "context.title": "Context Window",
     "context.messages": "Pesan",
@@ -75,8 +88,8 @@ STRINGS: dict[str, str] = {
     # ── Offline stub
     "offline.response": (
         "*[Mode Offline]* Kredensial API belum diset.\n\n"
-        "Set `CLOUDFLARE_ACCOUNT_ID` dan `CLOUDFLARE_API_TOKEN` "
-        "di environment atau file `.env`.\n\n"
+        "Pakai `/login` untuk koneksi akun Cloudflare, atau set\n"
+        "`CLOUDFLARE_ACCOUNT_ID` dan `CLOUDFLARE_API_TOKEN` di env vars.\n\n"
         "Lo bilang: **{input}**\nTarget: `{target}`"
     ),
 

@@ -3,16 +3,17 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "jack-the-shadow"
-version = "0.1.0"
-description = "Autonomous Penetration-Testing CLI Agent powered by Cloudflare Workers AI"
+name = "jshadow"
+version = "0.2.0"
+description = "Jack The Shadow — Autonomous Penetration-Testing CLI Agent powered by Cloudflare Workers AI"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 authors = [
+    { name = "TegarTheGreat" },
     { name = "Jack The Shadow Contributors" },
 ]
-keywords = ["pentesting", "security", "cli", "agent", "cloudflare"]
+keywords = ["pentesting", "security", "cli", "agent", "cloudflare", "red-team"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
@@ -43,12 +44,12 @@ dev = [
 ]
 
 [project.scripts]
-jack = "jack_the_shadow.cli:main"
+jshadow = "jack_the_shadow.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/YOUR_USERNAME/JackTheShadow"
-Repository = "https://github.com/YOUR_USERNAME/JackTheShadow"
-Issues = "https://github.com/YOUR_USERNAME/JackTheShadow/issues"
+Homepage = "https://github.com/TegarTheGreat/JackTheShadow"
+Repository = "https://github.com/TegarTheGreat/JackTheShadow"
+Issues = "https://github.com/TegarTheGreat/JackTheShadow/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]

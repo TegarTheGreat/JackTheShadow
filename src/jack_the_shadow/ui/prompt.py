@@ -14,9 +14,9 @@ from jack_the_shadow.ui.console import console
 
 
 def prompt_user() -> str:
-    """Show the ``jack>`` prompt and return user input."""
+    """Show the ``jshadow>`` prompt and return user input."""
     try:
-        return console.input("[bold cyan]jack>[/] ").strip()
+        return console.input("[bold cyan]jshadow>[/] ").strip()
     except (EOFError, KeyboardInterrupt):
         console.print(f"\n[dim]{t('goodbye')}[/]\n")
         raise SystemExit(0)

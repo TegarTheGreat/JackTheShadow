@@ -27,7 +27,10 @@ env/
 
 # Logs
 *.log
-jack.log
+jshadow.log
+
+# Session
+.jshadow/
 
 # OS
 .DS_Store

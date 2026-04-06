@@ -30,6 +30,8 @@ SLASH_COMMANDS: list[tuple[str, str]] = [
     ("/models",  "cmd.models.desc"),
     ("/lang",    "cmd.lang.desc"),
     ("/target",  "cmd.target.desc"),
+    ("/login",   "cmd.login.desc"),
+    ("/logout",  "cmd.logout.desc"),
     ("/mcp",     "cmd.mcp.desc"),
     ("/help",    "cmd.help.desc"),
     ("/exit",    "cmd.exit.desc"),
@@ -69,7 +71,7 @@ def _display_command_menu() -> Optional[str]:
         idx = int(choice) - 1
         if 0 <= idx < len(SLASH_COMMANDS):
             selected = SLASH_COMMANDS[idx][0]
-            if selected in ("/model", "/lang", "/target"):
+            if selected in ("/model", "/lang", "/target", "/login"):
                 try:
                     arg = console.input(
                         f"[dim]  {selected} [/][bold white]→ value: [/]"
@@ -177,6 +179,65 @@ def _handle_mcp_command(arg: str, executor: Optional[Any]) -> None:
     display_error(t("mcp.usage"))
 
 
+def _handle_login_command() -> None:
+    """Interactive Cloudflare credential setup → ~/.jshadow/credentials.json."""
+    from jack_the_shadow.session.auth import (
+        get_credential_source,
+        is_logged_in,
+        save_credentials,
+    )
+
+    if is_logged_in():
+        source = get_credential_source() or "unknown"
+        console.print(
+            f"\n[info]  {t('login.already_logged_in')}[/]\n"
+            f"  [dim]{t('login.source', source=source)}[/]"
+        )
+        try:
+            overwrite = console.input(
+                f"\n[bold white]  {t('login.overwrite_prompt')}[/]"
+            ).strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            return
+        if overwrite not in ("y", "yes"):
+            return
+
+    console.print(f"\n[info]  {t('login.instruction')}[/]\n")
+    try:
+        account_id = console.input(
+            "[bold white]  Cloudflare Account ID: [/]"
+        ).strip()
+        api_token = console.input(
+            "[bold white]  Cloudflare API Token:  [/]"
+        ).strip()
+    except (EOFError, KeyboardInterrupt):
+        console.print(f"\n[dim]  {t('hitl.cancelled')}[/]")
+        return
+
+    if not account_id or not api_token:
+        display_error(t("login.empty_fields"))
+        return
+
+    save_credentials(account_id, api_token)
+    display_info(t("login.success"))
+    console.print(f"  [dim]{t('login.restart_hint')}[/]")
+
+
+def _handle_logout_command() -> None:
+    """Clear stored Cloudflare credentials."""
+    from jack_the_shadow.session.auth import clear_credentials, is_logged_in
+
+    if not is_logged_in():
+        display_info(t("logout.not_logged_in"))
+        return
+
+    cleared = clear_credentials()
+    if cleared:
+        display_info(t("logout.success"))
+    else:
+        display_info(t("logout.not_logged_in"))
+
+
 def handle_local_command(
     command: str,
     state: Any,
@@ -275,6 +336,14 @@ def handle_local_command(
             display_info(t("target.switched", target=arg))
         else:
             display_error(t("target.usage"))
+        return True
+
+    if cmd == "/login":
+        _handle_login_command()
+        return True
+
+    if cmd == "/logout":
+        _handle_logout_command()
         return True
 
     if cmd == "/mcp":

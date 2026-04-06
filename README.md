@@ -4,6 +4,7 @@
 
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License MIT](https://img.shields.io/badge/license-MIT-green)
+[![PyPI](https://img.shields.io/pypi/v/jshadow)](https://pypi.org/project/jshadow/)
 
 ---
 
@@ -11,7 +12,6 @@
 
 Jack The Shadow is an enterprise-grade, modular CLI agent that assists
 with penetration testing, security assessments, and red-team operations.
-It features:
 
 - **11 built-in tools** — bash, file ops, grep, glob, HTTP, web fetch
   (with Cloudflare bypass), web search, and MCP integration
@@ -22,34 +22,61 @@ It features:
 - **MCP support** — connect external tool servers via Model Context Protocol
 - **Rich terminal UI** — ASCII banner, Markdown rendering, interactive
   slash-command menu
+- **Session management** — credentials and config stored in `~/.jshadow/`
 
-## Quick Start
+## Installation
+
+### Quick Install (Recommended)
 
 ```bash
-# Clone
-git clone https://github.com/YOUR_USERNAME/JackTheShadow.git
-cd JackTheShadow
-
-# Install
-pip install -e .
-
-# Configure
-cp .env.example .env
-# Edit .env with your Cloudflare credentials
-
-# Run
-jack --target 192.168.1.0/24
+curl -fsSL https://raw.githubusercontent.com/TegarTheGreat/JackTheShadow/main/install.sh | bash
 ```
+
+### From PyPI
+
+```bash
+pip install jshadow
+```
+
+### From Source
+
+```bash
+git clone https://github.com/TegarTheGreat/JackTheShadow.git
+cd JackTheShadow
+pip install .
+```
+
+## Getting Started
+
+```bash
+# 1. Login to Cloudflare
+jshadow --target 127.0.0.1
+# Then use /login at the prompt
+
+# 2. Or set credentials directly
+jshadow --target 192.168.1.0/24
+
+# 3. With options
+jshadow --target example.com --model @cf/meta/llama-3.3-70b-instruct-fp8-fast --lang id
+```
+
+## Authentication
+
+Jack uses `~/.jshadow/credentials.json` to store your Cloudflare credentials securely (file permissions: 600).
+
+| Method | How |
+|--------|-----|
+| `/login` | Interactive — prompted at the `jshadow>` shell |
+| `/logout` | Clears stored credentials |
+| Env vars | `CLOUDFLARE_ACCOUNT_ID` + `CLOUDFLARE_API_TOKEN` (fallback) |
 
 ## Configuration
 
 | Variable | Description |
 |----------|-------------|
-| `CLOUDFLARE_ACCOUNT_ID` | Your Cloudflare account ID |
-| `CLOUDFLARE_API_TOKEN` | Workers AI API token |
-| `JACK_DEFAULT_MODEL` | Default model (default: `@cf/openai/gpt-oss-120b`) |
-| `JACK_LANG` | Language: `en` or `id` (default: `en`) |
-| `JACK_LOG_LEVEL` | Log level (default: `DEBUG`) |
+| `JSHADOW_DEFAULT_MODEL` | Default model (default: `@cf/openai/gpt-oss-120b`) |
+| `JSHADOW_LANG` | Language: `en` or `id` (default: `en`) |
+| `JSHADOW_LOG_LEVEL` | Log level (default: `DEBUG`) |
 
 ## Slash Commands
 
@@ -57,6 +84,8 @@ Type `/` at the prompt for an interactive menu, or use directly:
 
 | Command | Description |
 |---------|-------------|
+| `/login` | Connect Cloudflare AI credentials |
+| `/logout` | Clear stored credentials |
 | `/yolo` | Toggle auto-approve mode |
 | `/clear` | Clear conversation context |
 | `/compact` | Compact context (keep last N) |
@@ -86,11 +115,21 @@ Type `/` at the prompt for an interactive menu, or use directly:
 | `web_search` | — | DuckDuckGo search |
 | `mcp_call` | ✅ | Call MCP server tools |
 
+## Session Directory
+
+```
+~/.jshadow/
+├── credentials.json   # Cloudflare auth (chmod 600)
+├── config.json        # User preferences (future)
+└── sessions/          # Conversation history (future)
+```
+
 ## Architecture
 
 ```
 src/jack_the_shadow/
 ├── cli.py              # Entry point + argparse
+├── session/            # ~/.jshadow credential & session management
 ├── config/             # Settings, model catalog, prompts
 ├── core/               # AI engine, state, orchestrator
 ├── i18n/               # Bilingual string tables
@@ -105,6 +144,8 @@ src/jack_the_shadow/
 ## Development
 
 ```bash
+git clone https://github.com/TegarTheGreat/JackTheShadow.git
+cd JackTheShadow
 pip install -e ".[dev]"
 pytest
 ```

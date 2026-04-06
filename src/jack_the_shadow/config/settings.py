@@ -12,11 +12,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# ── Cloudflare Workers AI ────────────────────────────────────────────
-CLOUDFLARE_ACCOUNT_ID: str = os.getenv("CLOUDFLARE_ACCOUNT_ID", "")
-CLOUDFLARE_API_TOKEN: str = os.getenv("CLOUDFLARE_API_TOKEN", "")
-DEFAULT_MODEL: str = os.getenv("JACK_DEFAULT_MODEL", "@cf/openai/gpt-oss-120b")
-DEFAULT_LANGUAGE: str = os.getenv("JACK_LANG", "en")
+# ── Default model & language ─────────────────────────────────────────
+DEFAULT_MODEL: str = os.getenv("JSHADOW_DEFAULT_MODEL", "@cf/openai/gpt-oss-120b")
+DEFAULT_LANGUAGE: str = os.getenv("JSHADOW_LANG", "en")
 
 # ── Runtime Limits ───────────────────────────────────────────────────
 MAX_CONTEXT_MESSAGES: int = 50
@@ -32,8 +30,8 @@ WEB_FETCH_TIMEOUT: int = 30
 WEB_SEARCH_MAX_RESULTS: int = 8
 
 # ── Logging ──────────────────────────────────────────────────────────
-LOG_FILE: str = "jack.log"
-LOG_LEVEL: str = os.getenv("JACK_LOG_LEVEL", "DEBUG")
+LOG_FILE: str = "jshadow.log"
+LOG_LEVEL: str = os.getenv("JSHADOW_LOG_LEVEL", "DEBUG")
 
 # ── API Endpoint Template ────────────────────────────────────────────
 API_ENDPOINT: str = (

@@ -55,7 +55,7 @@ class MCPServer:
             init_result = self._send_request("initialize", {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {},
-                "clientInfo": {"name": "jack-the-shadow", "version": "0.1.0"},
+                "clientInfo": {"name": "jshadow", "version": "0.2.0"},
             })
             if init_result is None:
                 logger.error("MCP server %s: initialize failed", self.name)

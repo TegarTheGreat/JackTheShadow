@@ -15,6 +15,7 @@ Thanks for your interest in contributing! 🗡️
 - **Docstrings** for public classes and functions
 - Follow existing patterns — one tool per file in `tools/builtin/`
 - Keep UI logic in `ui/`, business logic in `core/`, tool logic in `tools/`
+- Session & auth logic lives in `session/`
 
 ## Adding a New Tool
 
@@ -23,7 +24,13 @@ Thanks for your interest in contributing! 🗡️
 3. Add handler method in the same file
 4. Register in `tools/registry.py` → `build_default_registry()`
 5. Register handler in `tools/executor.py` → `ToolExecutor.__init__`
-6. Update i18n if needed
+6. Update i18n strings in `i18n/en.py` and `i18n/id.py` if needed
+
+## Adding a Slash Command
+
+1. Add to `SLASH_COMMANDS` list in `ui/commands.py`
+2. Add handler in `handle_local_command()` in `ui/commands.py`
+3. Add i18n strings for both `en` and `id`
 
 ## Pull Requests
 
@@ -36,6 +43,12 @@ Thanks for your interest in contributing! 🗡️
 
 - Use GitHub Issues
 - Include: Python version, OS, steps to reproduce, expected vs actual behaviour
+
+## Project Structure
+
+- `src/jack_the_shadow/` — main package (installed as `jshadow` via pip)
+- `tests/` — pytest test suite
+- `~/.jshadow/` — user session directory (credentials, config)
 
 ## License
 
