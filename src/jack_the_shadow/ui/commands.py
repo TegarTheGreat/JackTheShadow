@@ -2,7 +2,8 @@
 Jack The Shadow — Slash Command System
 
 Interactive command menu and all local command handlers.
-All menus use interactive ↑↓ selector — no number input needed.
+Commands are registered in a CommandRegistry for alias resolution,
+fuzzy search, and autocomplete. All menus use ↑↓ selector.
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ from rich.table import Table
 
 from jack_the_shadow.config import MAX_CONTEXT_MESSAGES
 from jack_the_shadow.config.models import get_model_catalog, MODEL_CATALOG
+from jack_the_shadow.core.command_registry import Command, CommandRegistry
 from jack_the_shadow.i18n import set_language, t
 from jack_the_shadow.ui.console import console
 from jack_the_shadow.ui.messages import display_error, display_info
@@ -22,30 +24,56 @@ from jack_the_shadow.utils.logger import get_logger
 
 logger = get_logger("ui.commands")
 
-# Registry: (command, description_key)
-SLASH_COMMANDS: list[tuple[str, str]] = [
-    ("/yolo",        "cmd.yolo.desc"),
-    ("/clear",       "cmd.clear.desc"),
-    ("/compact",     "cmd.compact.desc"),
-    ("/context",     "cmd.context.desc"),
-    ("/tools",       "cmd.tools.desc"),
-    ("/model",       "cmd.model.desc"),
-    ("/models",      "cmd.models.desc"),
-    ("/lang",        "cmd.lang.desc"),
-    ("/target",      "cmd.target.desc"),
-    ("/login",       "cmd.login.desc"),
-    ("/logout",      "cmd.logout.desc"),
-    ("/mcp",         "cmd.mcp.desc"),
-    ("/history",     "cmd.history.desc"),
-    ("/export",      "cmd.export.desc"),
-    ("/doctor",      "cmd.doctor.desc"),
-    ("/cost",        "cmd.cost.desc"),
-    ("/memory",      "cmd.memory.desc"),
-    ("/plan",        "cmd.plan.desc"),
-    ("/permissions", "cmd.permissions.desc"),
-    ("/help",        "cmd.help.desc"),
-    ("/exit",        "cmd.exit.desc"),
-]
+
+# ── Global registry ───────────────────────────────────────────────────
+
+_registry = CommandRegistry()
+
+
+def _register_commands() -> None:
+    """Populate the registry with all slash commands."""
+    commands = [
+        Command("/yolo",        t("cmd.yolo.desc"),        "session",  aliases=["/y"]),
+        Command("/clear",       t("cmd.clear.desc"),       "session"),
+        Command("/compact",     t("cmd.compact.desc"),     "session"),
+        Command("/context",     t("cmd.context.desc"),     "session", aliases=["/ctx"]),
+        Command("/tools",       t("cmd.tools.desc"),       "tools"),
+        Command("/model",       t("cmd.model.desc"),       "config",  aliases=["/m"]),
+        Command("/models",      t("cmd.models.desc"),      "config"),
+        Command("/lang",        t("cmd.lang.desc"),        "config",  aliases=["/language"]),
+        Command("/target",      t("cmd.target.desc"),      "session", aliases=["/t"]),
+        Command("/login",       t("cmd.login.desc"),       "auth"),
+        Command("/logout",      t("cmd.logout.desc"),      "auth"),
+        Command("/mcp",         t("cmd.mcp.desc"),         "tools"),
+        Command("/history",     t("cmd.history.desc"),     "session", aliases=["/hist"]),
+        Command("/export",      t("cmd.export.desc"),      "session"),
+        Command("/doctor",      t("cmd.doctor.desc"),      "tools",   aliases=["/doc"]),
+        Command("/cost",        t("cmd.cost.desc"),        "session"),
+        Command("/memory",      t("cmd.memory.desc"),      "session", aliases=["/mem"]),
+        Command("/plan",        t("cmd.plan.desc"),        "session"),
+        Command("/permissions", t("cmd.permissions.desc"), "config",  aliases=["/perm"]),
+        Command("/help",        t("cmd.help.desc"),        "general", aliases=["/h", "/?"]),
+        Command("/exit",        t("cmd.exit.desc"),        "general", aliases=["/quit", "/q"]),
+    ]
+    for cmd in commands:
+        _registry.register(cmd)
+
+
+# Build on first import
+_register_commands()
+
+
+def get_slash_commands() -> list[tuple[str, str]]:
+    """Return (command, description) list for prompt autocomplete.
+
+    Includes aliases so typing '/q' also autocompletes.
+    """
+    result: list[tuple[str, str]] = []
+    for cmd in _registry.all():
+        result.append((cmd.name, cmd.description))
+        for alias in cmd.aliases:
+            result.append((alias, f"→ {cmd.name}"))
+    return result
 
 
 def _safe_input(prompt_text: str) -> str:
@@ -59,15 +87,15 @@ def _safe_input(prompt_text: str) -> str:
 
 def _display_command_menu() -> Optional[str]:
     """Show an interactive ↑↓ selector for commands."""
-    labels = [cmd for cmd, _ in SLASH_COMMANDS]
-    descs = [t(desc_key) for _, desc_key in SLASH_COMMANDS]
+    commands = _registry.all()
+    labels = [cmd.name for cmd in commands]
+    descs = [cmd.description for cmd in commands]
 
     idx = interactive_select(labels, title="Commands", descriptions=descs)
     if idx is None:
         return None
 
-    selected = SLASH_COMMANDS[idx][0]
-    # Commands that need a text argument
+    selected = commands[idx].name
     if selected in ("/target",):
         console.print(f"[dim]  {selected} → enter value (ESC to cancel):[/]")
         arg = _safe_input("  > ")
@@ -445,8 +473,12 @@ def handle_local_command(
     from jack_the_shadow.ui.panels import display_yolo_toggle
 
     parts = command.strip().split(maxsplit=1)
-    cmd = parts[0].lower()
+    raw_cmd = parts[0].lower()
     arg = parts[1].strip() if len(parts) > 1 else ""
+
+    # Resolve aliases via registry (e.g. /q → /exit, /m → /model)
+    entry = _registry.find(raw_cmd)
+    cmd = entry.name if entry else raw_cmd
 
     if cmd == "/":
         selected = _display_command_menu()
@@ -454,7 +486,7 @@ def handle_local_command(
             return handle_local_command(selected, state, tool_names, executor, cost_tracker)
         return True
 
-    if cmd in ("/exit", "/quit", "/q"):
+    if cmd == "/exit":
         console.print(f"\n[dim]{t('goodbye')}[/]\n")
         logger.info("User requested /exit")
         raise SystemExit(0)
@@ -589,5 +621,11 @@ def handle_local_command(
         _handle_permissions_command(arg)
         return True
 
-    console.print(f"[dim]  Unknown command: {cmd}. Type / for menu.[/]")
+    # Fuzzy suggestion for unknown commands
+    suggestions = _registry.fuzzy_search(raw_cmd)
+    if suggestions:
+        best = suggestions[0].name
+        console.print(f"[dim]  Unknown command: {raw_cmd}. Did you mean [bold]{best}[/bold]? Type / for menu.[/]")
+    else:
+        console.print(f"[dim]  Unknown command: {raw_cmd}. Type / for menu.[/]")
     return True

@@ -39,6 +39,9 @@ STRINGS: dict[str, str] = {
     "spinner.thinking": "Jack's cooking up something...",
     "spinner.tool_result": "Jack's processing tool results...",
 
+    # ── AI responses
+    "ai.empty_response": "(Jack didn't produce a response.)",
+
     # ── YOLO mode
     "yolo.on_title": "☠  DANGER ZONE",
     "yolo.on_body": (

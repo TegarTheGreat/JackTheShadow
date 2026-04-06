@@ -27,6 +27,7 @@ from jack_the_shadow.ui import (
     status_spinner,
     StreamingDisplay,
 )
+from jack_the_shadow.ui.phases import Phase, get_phase_indicator
 from jack_the_shadow.utils.logger import get_logger
 
 logger = get_logger("core.orchestrator")
@@ -40,6 +41,7 @@ def process_tool_calls(
     state: AppState,
 ) -> None:
     """Execute each tool call and feed results back into context."""
+    indicator = get_phase_indicator()
     for tc in tool_calls:
         call_id = tc.get("id", "unknown")
         func = tc.get("function", {})
@@ -57,6 +59,7 @@ def process_tool_calls(
             f"[bold]{name}[/bold]({json.dumps(args, ensure_ascii=False)[:120]})[/]"
         )
 
+        indicator.set(Phase.TOOL_USE, name)
         result = executor.execute(name, args)
         result_str = json.dumps(result, ensure_ascii=False)
 
@@ -83,13 +86,14 @@ def query_ai(
     Always uses non-streaming for tool-call rounds (more reliable).
     """
     max_tool_rounds = 15
+    indicator = get_phase_indicator()
 
     for round_num in range(max_tool_rounds):
-        state.truncate_context()
         messages = state.get_messages_for_api()
 
         # ── Streaming path (first round only, text responses) ─────────
         if STREAM_RESPONSES and round_num == 0:
+            indicator.set(Phase.THINKING)
             display = StreamingDisplay()
             try:
                 assistant_msg = ai.chat_stream(
@@ -99,6 +103,7 @@ def query_ai(
                     on_token=display.on_token,
                 )
             except CloudflareAIError as exc:
+                indicator.set(Phase.ERROR, str(exc))
                 display.abort()
                 display_error(str(exc))
                 logger.error("AI query failed: %s", exc)
@@ -108,7 +113,7 @@ def query_ai(
 
             tool_calls = assistant_msg.get("tool_calls")
             if tool_calls:
-                # Don't show text panel for tool-call responses
+                indicator.set(Phase.TOOL_INPUT)
                 process_tool_calls(tool_calls, executor, state)
                 continue
 
@@ -118,9 +123,11 @@ def query_ai(
                 content = assistant_msg.get("content", "")
                 if content:
                     display_ai_message(content)
+            indicator.set(Phase.DONE)
             return
 
         # ── Non-streaming path (tool rounds & fallback) ───────────────
+        indicator.set(Phase.THINKING if round_num == 0 else Phase.TOOL_INPUT)
         spinner_msg = (
             t("spinner.thinking") if round_num == 0
             else t("spinner.tool_result")
@@ -131,6 +138,7 @@ def query_ai(
                     messages, tools=tool_schemas, cost_tracker=cost_tracker,
                 )
             except CloudflareAIError as exc:
+                indicator.set(Phase.ERROR, str(exc))
                 display_error(str(exc))
                 logger.error("AI query failed: %s", exc)
                 return
@@ -145,6 +153,7 @@ def query_ai(
         content = assistant_msg.get("content", "")
         if content:
             display_ai_message(content)
+        indicator.set(Phase.DONE)
         return
 
     display_error(t("tool.max_rounds", limit=max_tool_rounds))
@@ -161,6 +170,7 @@ def _auto_save_session(state: AppState) -> None:
                 console.print(f"[dim]  Session saved → {path}[/]")
     except Exception as exc:
         logger.warning("Auto-save failed: %s", exc)
+        console.print(f"[yellow dim]  ⚠ Session save failed: {exc}[/]")
 
 
 def _resume_session(session_id: str, state: AppState) -> None:

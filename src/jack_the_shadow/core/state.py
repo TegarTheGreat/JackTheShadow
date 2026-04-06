@@ -31,6 +31,7 @@ class AppState:
 
     def add_message(self, role: str, content: str) -> None:
         self.context_messages.append({"role": role, "content": content})
+        self.truncate_context()
         logger.debug("Added %s message (%d chars)", role, len(content))
 
     def add_tool_result(self, tool_call_id: str, content: str) -> None:
@@ -47,6 +48,7 @@ class AppState:
         if msg.get("content") is None:
             msg["content"] = ""
         self.context_messages.append(msg)
+        self.truncate_context()
         logger.debug("Added assistant message (raw)")
 
     def get_messages_for_api(self) -> list[dict[str, Any]]:

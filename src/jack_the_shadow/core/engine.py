@@ -22,6 +22,7 @@ from jack_the_shadow.config import (
     STREAM_RESPONSES,
     TEMPERATURE,
 )
+from jack_the_shadow.i18n import t
 from jack_the_shadow.utils.logger import get_logger
 
 logger = get_logger("core.engine")
@@ -373,7 +374,7 @@ class CloudflareAI:
 
         if not assistant_msg["content"] and "tool_calls" not in assistant_msg:
             logger.warning("Empty AI response: %s", json.dumps(result)[:500])
-            assistant_msg["content"] = "(Jack tidak memberikan respons.)"
+            assistant_msg["content"] = t("ai.empty_response")
 
         return assistant_msg
 
